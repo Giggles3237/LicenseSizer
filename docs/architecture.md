@@ -6,11 +6,12 @@ LicenseSizer is a client-only React application built with vinext/Vite and deplo
 
 1. The user grants rear-camera access or selects an image.
 2. The browser decodes an oriented working copy and calculates coarse quality signals.
-3. The user confirms four normalized corner coordinates using touch, pointer, or keyboard controls.
-4. A projective transform resamples the selected quadrilateral onto a canonical ID-1 raster.
-5. `pdf-lib` embeds the corrected JPEG at exact PDF-point dimensions.
-6. The resulting Blob is shared through the Web Share API or downloaded through a temporary object URL.
-7. Starting over stops media tracks, revokes object URLs, and drops references.
+3. A local Sobel/connected-edge pass proposes four card corners and rotates portrait-oriented detections into landscape order.
+4. The user confirms the visible result or adjusts normalized corner coordinates using touch, pointer, or keyboard controls.
+5. A projective transform resamples the selected quadrilateral onto a canonical ID-1 raster.
+6. `pdf-lib` embeds the corrected JPEG at exact PDF-point dimensions.
+7. The resulting Blob is shared through the Web Share API or downloaded through a temporary object URL.
+8. Starting over stops media tracks, revokes object URLs, and drops references.
 
 ## Important constants
 
@@ -28,4 +29,4 @@ Image DPI metadata does not control physical placement. The PDF drawing matrix d
 - `lib/pdf.ts`: page geometry, image placement, marks, metadata, filename
 - `public/sw.js`: static application-shell caching only
 
-The first release intentionally favors explicit user crop confirmation over uncalibrated automatic document detection.
+Automatic detection is always shown for user confirmation; low-confidence results fall back to the safe default handles instead of silently cropping.

@@ -9,6 +9,14 @@ export type QualityResult = {
   sharpness: number;
 };
 
+export type DetectionResult = {
+  corners: [Point, Point, Point, Point];
+  confidence: number;
+  found: boolean;
+  rotated: boolean;
+  aspectRatio: number;
+};
+
 export const DEFAULT_CORNERS: [Point, Point, Point, Point] = [
   { x: 0.06, y: 0.08 },
   { x: 0.94, y: 0.08 },
@@ -101,6 +109,154 @@ export async function analyzeImage(source: Blob): Promise<QualityResult> {
     return { status: "warn", title: "Check the focus", detail: "Retake the photo if the text is not crisp and readable.", brightness, glare, sharpness };
   }
   return { status: "pass", title: "Photo looks usable", detail: "Confirm that all four corners are inside the crop.", brightness, glare, sharpness };
+}
+
+const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
+
+export function orientDocumentCorners(points: [Point, Point, Point, Point]) {
+  const horizontal = (distance(points[0], points[1]) + distance(points[3], points[2])) / 2;
+  const vertical = (distance(points[0], points[3]) + distance(points[1], points[2])) / 2;
+  const rotated = vertical > horizontal;
+  return {
+    corners: (rotated ? [points[3], points[0], points[1], points[2]] : points) as [Point, Point, Point, Point],
+    horizontal,
+    vertical,
+    rotated,
+  };
+}
+
+export async function detectDocument(source: Blob): Promise<DetectionResult> {
+  const canvas = await sourceToCanvas(source, 480);
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("Unable to inspect the card edges.");
+  const width = canvas.width;
+  const height = canvas.height;
+  const { data } = context.getImageData(0, 0, width, height);
+  const gray = new Uint8Array(width * height);
+  for (let index = 0, offset = 0; index < gray.length; index += 1, offset += 4) {
+    gray[index] = Math.round(data[offset] * 0.299 + data[offset + 1] * 0.587 + data[offset + 2] * 0.114);
+  }
+
+  const magnitude = new Uint8Array(width * height);
+  const histogram = new Uint32Array(256);
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = y * width + x;
+      const gx =
+        -gray[index - width - 1] - 2 * gray[index - 1] - gray[index + width - 1] +
+        gray[index - width + 1] + 2 * gray[index + 1] + gray[index + width + 1];
+      const gy =
+        -gray[index - width - 1] - 2 * gray[index - width] - gray[index - width + 1] +
+        gray[index + width - 1] + 2 * gray[index + width] + gray[index + width + 1];
+      const value = Math.min(255, Math.round(Math.hypot(gx, gy) / 4));
+      magnitude[index] = value;
+      histogram[value] += 1;
+    }
+  }
+
+  const target = Math.round(width * height * 0.86);
+  let cumulative = 0;
+  let threshold = 42;
+  for (let value = 0; value < histogram.length; value += 1) {
+    cumulative += histogram[value];
+    if (cumulative >= target) {
+      threshold = Math.max(34, value);
+      break;
+    }
+  }
+
+  let edges = new Uint8Array(width * height);
+  for (let index = 0; index < magnitude.length; index += 1) edges[index] = magnitude[index] >= threshold ? 1 : 0;
+  for (let pass = 0; pass < 2; pass += 1) {
+    const expanded = edges.slice();
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const index = y * width + x;
+        if (!edges[index]) continue;
+        expanded[index - 1] = 1;
+        expanded[index + 1] = 1;
+        expanded[index - width] = 1;
+        expanded[index + width] = 1;
+      }
+    }
+    edges = expanded;
+  }
+
+  const visited = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  let best: { score: number; count: number; tl: Point; tr: Point; br: Point; bl: Point; minX: number; maxX: number; minY: number; maxY: number } | null = null;
+
+  for (let start = 0; start < edges.length; start += 1) {
+    if (!edges[start] || visited[start]) continue;
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = start;
+    visited[start] = 1;
+    let count = 0;
+    let minX = width;
+    let maxX = 0;
+    let minY = height;
+    let maxY = 0;
+    let minSum = Infinity;
+    let maxSum = -Infinity;
+    let minDifference = Infinity;
+    let maxDifference = -Infinity;
+    let tl = { x: 0, y: 0 };
+    let tr = { x: 0, y: 0 };
+    let br = { x: 0, y: 0 };
+    let bl = { x: 0, y: 0 };
+
+    while (head < tail) {
+      const index = queue[head++];
+      const x = index % width;
+      const y = Math.floor(index / width);
+      count += 1;
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      const sum = x + y;
+      const difference = x - y;
+      if (sum < minSum) { minSum = sum; tl = { x, y }; }
+      if (sum > maxSum) { maxSum = sum; br = { x, y }; }
+      if (difference > maxDifference) { maxDifference = difference; tr = { x, y }; }
+      if (difference < minDifference) { minDifference = difference; bl = { x, y }; }
+
+      const neighbors = [index - 1, index + 1, index - width, index + width, index - width - 1, index - width + 1, index + width - 1, index + width + 1];
+      for (const neighbor of neighbors) {
+        if (neighbor < 0 || neighbor >= edges.length || visited[neighbor] || !edges[neighbor]) continue;
+        const neighborX = neighbor % width;
+        if (Math.abs(neighborX - x) > 1) continue;
+        visited[neighbor] = 1;
+        queue[tail++] = neighbor;
+      }
+    }
+
+    if (count < width * height * 0.004) continue;
+    const boxArea = (maxX - minX) * (maxY - minY);
+    const coverage = boxArea / (width * height);
+    const touches = Number(minX <= 2) + Number(minY <= 2) + Number(maxX >= width - 3) + Number(maxY >= height - 3);
+    if (coverage < 0.08 || coverage > 0.97 || touches >= 3) continue;
+    const centerX = (minX + maxX) / 2 / width;
+    const centerY = (minY + maxY) / 2 / height;
+    const centerWeight = 1 - Math.min(0.7, Math.hypot(centerX - 0.5, centerY - 0.5));
+    const score = boxArea * (0.65 + centerWeight * 0.35) * (touches ? 0.78 : 1);
+    if (!best || score > best.score) best = { score, count, tl, tr, br, bl, minX, maxX, minY, maxY };
+  }
+
+  if (!best) {
+    return { corners: DEFAULT_CORNERS.map((point) => ({ ...point })) as [Point, Point, Point, Point], confidence: 0, found: false, rotated: false, aspectRatio: width / height };
+  }
+
+  const detectedPoints = [best.tl, best.tr, best.br, best.bl].map((point) => ({ x: point.x / width, y: point.y / height })) as [Point, Point, Point, Point];
+  const { corners: points, horizontal, vertical, rotated } = orientDocumentCorners(detectedPoints);
+  const polygonArea = Math.abs(points.reduce((area, point, index) => {
+    const next = points[(index + 1) % points.length];
+    return area + point.x * next.y - next.x * point.y;
+  }, 0) / 2);
+  const measuredRatio = Math.max(horizontal, vertical) / Math.max(0.001, Math.min(horizontal, vertical));
+  const ratioScore = Math.max(0, 1 - Math.abs(measuredRatio - 1.58577) / 1.2);
+  const areaScore = Math.min(1, polygonArea / 0.28);
+  const confidence = Math.max(0, Math.min(1, areaScore * 0.58 + ratioScore * 0.42));
+
+  return { corners: points, confidence, found: confidence >= 0.48, rotated, aspectRatio: width / height };
 }
 
 function squareToQuadrilateral(points: [Point, Point, Point, Point], width: number, height: number) {

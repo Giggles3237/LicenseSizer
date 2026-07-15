@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, KeyboardEvent, PointerEvent, useCallback, useEffect, useRef, useState } from "react";
-import { analyzeImage, correctPerspective, DEFAULT_CORNERS, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
+import { analyzeImage, correctPerspective, DEFAULT_CORNERS, detectDocument, DetectionResult, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
 import type { PdfOptions } from "../lib/pdf";
 
 type Side = "front" | "back";
@@ -56,7 +56,10 @@ export default function LicenseSizerApp() {
   const [draftUrl, setDraftUrl] = useState("");
   const [corners, setCorners] = useState<[Point, Point, Point, Point]>(() => DEFAULT_CORNERS.map((point) => ({ ...point })) as [Point, Point, Point, Point]);
   const [quality, setQuality] = useState<QualityResult | null>(null);
+  const [detection, setDetection] = useState<DetectionResult | null>(null);
+  const [draftAspect, setDraftAspect] = useState(1.333);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
@@ -78,6 +81,7 @@ export default function LicenseSizerApp() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setCameraOpen(false);
+    setCameraReady(false);
   }, []);
 
   const clearDraft = useCallback(() => {
@@ -85,6 +89,7 @@ export default function LicenseSizerApp() {
     setDraft(null);
     setDraftUrl("");
     setQuality(null);
+    setDetection(null);
     setCorners(DEFAULT_CORNERS.map((point) => ({ ...point })) as [Point, Point, Point, Point]);
   }, [draftUrl]);
 
@@ -123,6 +128,23 @@ export default function LicenseSizerApp() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!cameraOpen || !videoRef.current || !streamRef.current) return;
+    const video = videoRef.current;
+    video.srcObject = streamRef.current;
+    const beginPreview = () => {
+      void video.play().then(() => setCameraReady(true)).catch(() => setMessage("Tap the preview to start the camera."));
+    };
+    if (video.readyState >= 1) beginPreview();
+    else video.addEventListener("loadedmetadata", beginPreview, { once: true });
+    return () => video.removeEventListener("loadedmetadata", beginPreview);
+  }, [cameraOpen]);
+
+  useEffect(() => {
+    document.body.classList.toggle("camera-active", cameraOpen);
+    return () => document.body.classList.remove("camera-active");
+  }, [cameraOpen]);
+
   useEffect(() => () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
   }, []);
@@ -139,12 +161,6 @@ export default function LicenseSizerApp() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
       streamRef.current = stream;
       setCameraOpen(true);
-      window.setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          void videoRef.current.play();
-        }
-      }, 0);
     } catch {
       setMessage("Camera permission was not granted. You can still choose a photo from this device.");
     }
@@ -160,7 +176,11 @@ export default function LicenseSizerApp() {
       const url = URL.createObjectURL(blob);
       setDraft(blob);
       setDraftUrl(url);
-      setQuality(await analyzeImage(blob));
+      const [qualityResult, detectionResult] = await Promise.all([analyzeImage(blob), detectDocument(blob)]);
+      setQuality(qualityResult);
+      setDetection(detectionResult);
+      setDraftAspect(detectionResult.aspectRatio);
+      setCorners((detectionResult.found ? detectionResult.corners : DEFAULT_CORNERS).map((point) => ({ ...point })) as [Point, Point, Point, Point]);
       setStage("review");
       setMessage("");
     } catch (error) {
@@ -349,10 +369,25 @@ export default function LicenseSizerApp() {
             </div>
             <p>Place the license on a contrasting surface. Keep all four corners visible and avoid direct glare.</p>
             {cameraOpen ? (
-              <div className="camera-wrap">
-                <video ref={videoRef} muted playsInline aria-label={`Camera preview for license ${sideLabel(activeSide)}`} />
-                <div className="camera-guide" aria-hidden="true"><span>Fit the card inside</span></div>
-                <div className="camera-actions"><button className="secondary" onClick={stopCamera}>Cancel</button><button className="shutter" onClick={capturePhoto} aria-label="Take photo"><span /></button><span className="action-spacer" /></div>
+              <div className={`camera-wrap ${cameraReady ? "camera-ready" : ""}`}>
+                <video ref={videoRef} muted playsInline autoPlay onClick={() => void videoRef.current?.play()} aria-label={`Live camera preview for license ${sideLabel(activeSide)}`} />
+                <div className="camera-topbar">
+                  <button className="camera-close" onClick={stopCamera} aria-label="Close camera">×</button>
+                  <span>{activeSide === "front" ? "License front" : "License back"}</span>
+                  <span className="camera-private"><i /> On-device</span>
+                </div>
+                <div className="camera-guide" aria-hidden="true">
+                  <i className="guide-corner top-left" /><i className="guide-corner top-right" /><i className="guide-corner bottom-right" /><i className="guide-corner bottom-left" />
+                </div>
+                <div className="camera-prompt" role="status">
+                  <strong>{cameraReady ? "Fit all four corners inside the frame" : "Starting camera…"}</strong>
+                  <span>{cameraReady ? "We’ll rotate and crop it automatically" : "Camera access stays on this device"}</span>
+                </div>
+                <div className="camera-actions">
+                  <button className="gallery-shortcut" onClick={() => fileRef.current?.click()}><span aria-hidden="true">▧</span> Photos</button>
+                  <button className="shutter" onClick={capturePhoto} disabled={!cameraReady} aria-label="Take photo"><span /></button>
+                  <span className="action-spacer" />
+                </div>
               </div>
             ) : (
               <div className="capture-choices">
@@ -367,9 +402,10 @@ export default function LicenseSizerApp() {
 
         {stage === "review" && draftUrl && (
           <div className="panel review-panel">
-            <div className="panel-heading"><div><span className="step-kicker">Review {sideLabel(activeSide)}</span><h1>Line up the corners</h1></div><button className="text-button" onClick={() => beginCapture(activeSide)}>Retake</button></div>
-            <p>Drag each numbered handle to the matching corner of the card. Use arrow keys for fine adjustments.</p>
-            <div className="crop-stage" ref={cropRef} onPointerMove={(event) => dragIndex.current !== null && moveFromPointer(event as unknown as PointerEvent<HTMLButtonElement>, dragIndex.current)} onPointerUp={() => { dragIndex.current = null; }}>
+            <div className="panel-heading"><div><span className="step-kicker">Review {sideLabel(activeSide)}</span><h1>Check the automatic crop</h1></div><button className="text-button" onClick={() => beginCapture(activeSide)}>Retake</button></div>
+            <p>{detection?.found ? "We found and straightened the card edges. Move a handle only if the outline needs a small correction." : "We couldn’t confidently find every edge. Drag the numbered handles onto the four card corners."}</p>
+            <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{detection?.found ? `Automatic crop${detection.rotated ? " + rotation" : ""}` : "Manual check needed"}</div>
+            <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(65vh * ${draftAspect}))` }} ref={cropRef} onPointerMove={(event) => dragIndex.current !== null && moveFromPointer(event as unknown as PointerEvent<HTMLButtonElement>, dragIndex.current)} onPointerUp={() => { dragIndex.current = null; }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={draftUrl} alt={`Uncropped license ${sideLabel(activeSide)}`} draggable={false} />
               {cropLines.map((style, index) => <span className="crop-line" style={style} key={index} />)}
@@ -378,7 +414,7 @@ export default function LicenseSizerApp() {
               ))}
             </div>
             {quality && <div className={`quality ${quality.status}`}><span aria-hidden="true">{quality.status === "pass" ? "✓" : "!"}</span><div><strong>{quality.title}</strong><p>{quality.detail}</p></div></div>}
-            <div className="review-actions"><button className="secondary" onClick={rotateDraft} disabled={busy}>Rotate 90°</button><button className="primary" onClick={acceptCrop} disabled={busy}>Use this crop <span aria-hidden="true">→</span></button></div>
+            <div className="review-actions"><button className="secondary" onClick={rotateDraft} disabled={busy}>Rotate 90°</button><button className="primary" onClick={acceptCrop} disabled={busy}>{detection?.found ? "Looks good" : "Use this crop"} <span aria-hidden="true">→</span></button></div>
           </div>
         )}
 
