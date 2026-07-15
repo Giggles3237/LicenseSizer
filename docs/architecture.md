@@ -6,7 +6,7 @@ LicenseSizer is a client-only React application built with vinext/Vite and deplo
 
 1. The user grants rear-camera access or selects an image.
 2. The browser decodes an oriented working copy and calculates coarse quality signals.
-3. A local Sobel/connected-edge pass proposes four card corners and rotates portrait-oriented detections into landscape order.
+3. Camera captures map the visible ID-1 guide through the video element's `object-fit: cover` geometry into the full-resolution frame. Uploaded photos use a conservative Sobel/connected-edge proposal and rotate portrait-oriented detections into landscape order.
 4. The user confirms the visible result or adjusts normalized corner coordinates using touch, pointer, or keyboard controls.
 5. A projective transform resamples the selected quadrilateral onto a canonical ID-1 raster.
 6. `pdf-lib` embeds the corrected JPEG at exact PDF-point dimensions.

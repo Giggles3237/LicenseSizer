@@ -2,6 +2,7 @@
 
 import { ChangeEvent, KeyboardEvent, PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { analyzeImage, correctPerspective, DEFAULT_CORNERS, detectDocument, DetectionResult, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
+import { mapGuideToVideoCorners } from "../lib/camera-geometry";
 import type { PdfOptions } from "../lib/pdf";
 
 type Side = "front" | "back";
@@ -57,6 +58,7 @@ export default function LicenseSizerApp() {
   const [corners, setCorners] = useState<[Point, Point, Point, Point]>(() => DEFAULT_CORNERS.map((point) => ({ ...point })) as [Point, Point, Point, Point]);
   const [quality, setQuality] = useState<QualityResult | null>(null);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
+  const [cropSource, setCropSource] = useState<"guide" | "edges" | "manual">("manual");
   const [draftAspect, setDraftAspect] = useState(1.333);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -72,6 +74,7 @@ export default function LicenseSizerApp() {
     quality: "high",
   });
   const videoRef = useRef<HTMLVideoElement>(null);
+  const guideRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cropRef = useRef<HTMLDivElement>(null);
@@ -90,6 +93,7 @@ export default function LicenseSizerApp() {
     setDraftUrl("");
     setQuality(null);
     setDetection(null);
+    setCropSource("manual");
     setCorners(DEFAULT_CORNERS.map((point) => ({ ...point })) as [Point, Point, Point, Point]);
   }, [draftUrl]);
 
@@ -166,7 +170,7 @@ export default function LicenseSizerApp() {
     }
   };
 
-  const prepareDraft = async (blob: Blob) => {
+  const prepareDraft = async (blob: Blob, guideCorners?: [Point, Point, Point, Point]) => {
     setBusy(true);
     setMessage("Checking the photo…");
     try {
@@ -176,9 +180,15 @@ export default function LicenseSizerApp() {
       const url = URL.createObjectURL(blob);
       setDraft(blob);
       setDraftUrl(url);
-      const [qualityResult, detectionResult] = await Promise.all([analyzeImage(blob), detectDocument(blob)]);
+      const [qualityResult, detectionResult] = await Promise.all([
+        analyzeImage(blob),
+        guideCorners
+          ? sourceToCanvas(blob, 32).then((canvas): DetectionResult => ({ corners: guideCorners, confidence: 1, found: true, rotated: false, aspectRatio: canvas.width / canvas.height }))
+          : detectDocument(blob),
+      ]);
       setQuality(qualityResult);
       setDetection(detectionResult);
+      setCropSource(guideCorners ? "guide" : detectionResult.found ? "edges" : "manual");
       setDraftAspect(detectionResult.aspectRatio);
       setCorners((detectionResult.found ? detectionResult.corners : DEFAULT_CORNERS).map((point) => ({ ...point })) as [Point, Point, Point, Point]);
       setStage("review");
@@ -198,12 +208,19 @@ export default function LicenseSizerApp() {
 
   const capturePhoto = () => {
     const video = videoRef.current;
-    if (!video || video.videoWidth === 0) return;
+    const guide = guideRef.current;
+    if (!video || !guide || video.videoWidth === 0) return;
+    const guideCorners = mapGuideToVideoCorners(
+      guide.getBoundingClientRect(),
+      video.getBoundingClientRect(),
+      video.videoWidth,
+      video.videoHeight,
+    );
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext("2d")?.drawImage(video, 0, 0);
-    canvas.toBlob((blob) => blob && void prepareDraft(blob), "image/jpeg", 0.94);
+    canvas.toBlob((blob) => blob && void prepareDraft(blob, guideCorners), "image/jpeg", 0.94);
   };
 
   const rotateDraft = async () => {
@@ -376,12 +393,12 @@ export default function LicenseSizerApp() {
                   <span>{activeSide === "front" ? "License front" : "License back"}</span>
                   <span className="camera-private"><i /> On-device</span>
                 </div>
-                <div className="camera-guide" aria-hidden="true">
+                <div className="camera-guide" ref={guideRef} aria-hidden="true">
                   <i className="guide-corner top-left" /><i className="guide-corner top-right" /><i className="guide-corner bottom-right" /><i className="guide-corner bottom-left" />
                 </div>
                 <div className="camera-prompt" role="status">
-                  <strong>{cameraReady ? "Fit all four corners inside the frame" : "Starting camera…"}</strong>
-                  <span>{cameraReady ? "We’ll rotate and crop it automatically" : "Camera access stays on this device"}</span>
+                  <strong>{cameraReady ? "Line up the card edges with the frame" : "Starting camera…"}</strong>
+                  <span>{cameraReady ? "The white frame becomes the exact crop" : "Camera access stays on this device"}</span>
                 </div>
                 <div className="camera-actions">
                   <button className="gallery-shortcut" onClick={() => fileRef.current?.click()}><span aria-hidden="true">▧</span> Photos</button>
@@ -403,8 +420,8 @@ export default function LicenseSizerApp() {
         {stage === "review" && draftUrl && (
           <div className="panel review-panel">
             <div className="panel-heading"><div><span className="step-kicker">Review {sideLabel(activeSide)}</span><h1>Check the automatic crop</h1></div><button className="text-button" onClick={() => beginCapture(activeSide)}>Retake</button></div>
-            <p>{detection?.found ? "We found and straightened the card edges. Move a handle only if the outline needs a small correction." : "We couldn’t confidently find every edge. Drag the numbered handles onto the four card corners."}</p>
-            <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{detection?.found ? `Automatic crop${detection.rotated ? " + rotation" : ""}` : "Manual check needed"}</div>
+            <p>{cropSource === "guide" ? "The crop now matches the white camera frame exactly. Move a handle only if the card was not aligned with it." : detection?.found ? "We found and straightened the card edges. Move a handle only if the outline needs a small correction." : "We couldn’t confidently find every edge. Drag the numbered handles onto the four card corners."}</p>
+            <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{cropSource === "guide" ? "Camera-frame crop" : detection?.found ? `Automatic edge crop${detection.rotated ? " + rotation" : ""}` : "Manual check needed"}</div>
             <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(65vh * ${draftAspect}))` }} ref={cropRef} onPointerMove={(event) => dragIndex.current !== null && moveFromPointer(event as unknown as PointerEvent<HTMLButtonElement>, dragIndex.current)} onPointerUp={() => { dragIndex.current = null; }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={draftUrl} alt={`Uncropped license ${sideLabel(activeSide)}`} draggable={false} />

@@ -256,7 +256,7 @@ export async function detectDocument(source: Blob): Promise<DetectionResult> {
   const areaScore = Math.min(1, polygonArea / 0.28);
   const confidence = Math.max(0, Math.min(1, areaScore * 0.58 + ratioScore * 0.42));
 
-  return { corners: points, confidence, found: confidence >= 0.48, rotated, aspectRatio: width / height };
+  return { corners: points, confidence, found: confidence >= 0.78, rotated, aspectRatio: width / height };
 }
 
 function squareToQuadrilateral(points: [Point, Point, Point, Point], width: number, height: number) {

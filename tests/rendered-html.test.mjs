@@ -3,6 +3,7 @@ import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 import { CARD_HEIGHT_POINTS, CARD_WIDTH_POINTS, cardPlacement } from "../lib/pdf.ts";
 import { orientDocumentCorners } from "../lib/image-processing.ts";
+import { mapGuideToVideoCorners } from "../lib/camera-geometry.ts";
 
 const root = new URL("../", import.meta.url);
 
@@ -52,6 +53,19 @@ test("automatically rotates portrait card detections into landscape order", () =
   const correctedTopEdge = Math.hypot(result.corners[1].x - result.corners[0].x, result.corners[1].y - result.corners[0].y);
   const correctedSideEdge = Math.hypot(result.corners[3].x - result.corners[0].x, result.corners[3].y - result.corners[0].y);
   assert.ok(correctedTopEdge > correctedSideEdge);
+});
+
+test("maps the visible camera guide into the full-resolution covered video", () => {
+  const corners = mapGuideToVideoCorners(
+    { left: 20, top: 300, width: 350, height: 221 },
+    { left: 0, top: 0, width: 390, height: 844 },
+    1920,
+    1080,
+  );
+  assert.ok(corners[0].x > 0.37 && corners[0].x < 0.4);
+  assert.ok(corners[1].x > 0.6 && corners[1].x < 0.63);
+  assert.ok(corners[0].y > 0.34 && corners[0].y < 0.37);
+  assert.ok(corners[2].y > 0.6 && corners[2].y < 0.63);
 });
 
 test("removes the disposable starter and avoids sensitive persistence", async () => {
