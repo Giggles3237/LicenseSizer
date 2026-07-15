@@ -5,6 +5,7 @@ import { CARD_HEIGHT_POINTS, CARD_WIDTH_POINTS, cardPlacement } from "../lib/pdf
 import { orientDocumentCorners } from "../lib/image-processing.ts";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry.ts";
 import { detectDocumentWithOpenCv, warpDocumentWithOpenCv } from "../lib/opencv-document.ts";
+import { orderDocumentPoints, squareToQuadrilateral } from "../lib/document-geometry.ts";
 
 const root = new URL("../", import.meta.url);
 
@@ -70,6 +71,7 @@ test("maps the visible camera guide into the full-resolution covered video", () 
 });
 
 test("OpenCV analysis finds a four-corner card contour instead of copying the guide", async () => {
+  globalThis.window ??= { cv: await Promise.resolve((await import("@techstark/opencv-js")).default) };
   globalThis.HTMLImageElement ??= class HTMLImageElement {};
   globalThis.HTMLCanvasElement ??= class HTMLCanvasElement {};
   globalThis.ImageData ??= class ImageData {
@@ -132,6 +134,22 @@ test("OpenCV perspective correction maps exact manual corners to a rectangle", a
   assert.ok(pixel(157, 97)[2] > 180, "bottom-right should come from the blue source corner");
   const bottomLeft = pixel(2, 97);
   assert.ok(bottomLeft[0] > 180 && bottomLeft[1] > 180, "bottom-left should come from the yellow source corner");
+});
+
+test("lightweight perspective fallback maps all four unordered manual corners", () => {
+  const points = [{ x: 0.82, y: 0.86 }, { x: 0.16, y: 0.14 }, { x: 0.88, y: 0.22 }, { x: 0.1, y: 0.8 }];
+  const ordered = orderDocumentPoints(points);
+  const transform = squareToQuadrilateral(ordered, 1000, 800);
+  const project = (u, v) => {
+    const divisor = transform.g * u + transform.h * v + 1;
+    return { x: (transform.a * u + transform.b * v + transform.c) / divisor, y: (transform.d * u + transform.e * v + transform.f) / divisor };
+  };
+  const expected = ordered.map((point) => ({ x: point.x * 999, y: point.y * 799 }));
+  [[0, 0], [1, 0], [1, 1], [0, 1]].forEach(([u, v], index) => {
+    const actual = project(u, v);
+    assert.ok(Math.abs(actual.x - expected[index].x) < 0.001);
+    assert.ok(Math.abs(actual.y - expected[index].y) < 0.001);
+  });
 });
 
 test("removes the disposable starter and avoids sensitive persistence", async () => {

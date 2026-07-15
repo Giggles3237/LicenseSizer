@@ -1,38 +1,33 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { DetectionResult, Point } from "./image-processing";
+import { orderDocumentPoints } from "./document-geometry.ts";
 
 let openCvPromise: Promise<any> | null = null;
 
 async function loadOpenCv() {
   if (!openCvPromise) {
-    openCvPromise = import("@techstark/opencv-js").then(async (module) => {
-      const candidate = await Promise.resolve(module.default);
-      if (candidate?.Mat) return candidate;
-      return new Promise((resolve, reject) => {
-        const timeout = window.setTimeout(() => reject(new Error("The image analyzer took too long to start.")), 15_000);
-        candidate.onRuntimeInitialized = () => {
-          window.clearTimeout(timeout);
-          resolve(candidate);
-        };
-      });
-    });
+    openCvPromise = new Promise((resolve, reject) => {
+      const browserWindow = window as Window & { cv?: Promise<any> | any };
+      const finish = () => Promise.resolve(browserWindow.cv).then((cv) => cv?.Mat ? resolve(cv) : reject(new Error("The image analyzer did not initialize.")), reject);
+      if (browserWindow.cv) { void finish(); return; }
+      const existing = document.querySelector<HTMLScriptElement>('script[data-license-sizer-opencv]');
+      const script = existing ?? document.createElement("script");
+      const timeout = window.setTimeout(() => reject(new Error("The image analyzer took too long to start.")), 30_000);
+      const ready = () => { window.clearTimeout(timeout); void finish(); };
+      script.addEventListener("load", ready, { once: true });
+      script.addEventListener("error", () => { window.clearTimeout(timeout); reject(new Error("The image analyzer could not be loaded.")); }, { once: true });
+      if (!existing) {
+        script.src = "/opencv.js";
+        script.async = true;
+        script.dataset.licenseSizerOpencv = "true";
+        document.head.appendChild(script);
+      }
+    }).catch((error) => { openCvPromise = null; throw error; });
   }
   return openCvPromise;
 }
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
-
-export function orderDocumentPoints(points: Point[]): [Point, Point, Point, Point] {
-  if (points.length !== 4) throw new Error("Four card corners are required.");
-  const topLeft = points.reduce((best, point) => point.x + point.y < best.x + best.y ? point : best);
-  const bottomRight = points.reduce((best, point) => point.x + point.y > best.x + best.y ? point : best);
-  const topRight = points.reduce((best, point) => point.x - point.y > best.x - best.y ? point : best);
-  const bottomLeft = points.reduce((best, point) => point.x - point.y < best.x - best.y ? point : best);
-  const ordered = [topLeft, topRight, bottomRight, bottomLeft] as [Point, Point, Point, Point];
-  const horizontal = (distance(ordered[0], ordered[1]) + distance(ordered[3], ordered[2])) / 2;
-  const vertical = (distance(ordered[0], ordered[3]) + distance(ordered[1], ordered[2])) / 2;
-  return vertical > horizontal ? [ordered[3], ordered[0], ordered[1], ordered[2]] : ordered;
-}
 
 function polygonArea(points: Point[]) {
   return Math.abs(points.reduce((sum, point, index) => {

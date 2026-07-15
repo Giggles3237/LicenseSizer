@@ -1,3 +1,5 @@
+import { orderDocumentPoints, squareToQuadrilateral } from "./document-geometry.ts";
+
 export type Point = { x: number; y: number };
 
 export type QualityResult = {
@@ -26,6 +28,16 @@ export const DEFAULT_CORNERS: [Point, Point, Point, Point] = [
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_PIXELS = 60_000_000;
+
+function timeoutAfter<T>(promise: Promise<T>, milliseconds: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error(message)), milliseconds);
+    promise.then(
+      (value) => { window.clearTimeout(timeout); resolve(value); },
+      (error) => { window.clearTimeout(timeout); reject(error); },
+    );
+  });
+}
 
 export async function validateImage(file: File | Blob) {
   if (file.size > MAX_FILE_BYTES) {
@@ -129,11 +141,13 @@ export async function detectDocument(source: Blob, hint?: [Point, Point, Point, 
   const canvas = await sourceToCanvas(source, 960);
   try {
     const { detectDocumentWithOpenCv } = await import("./opencv-document");
-    const result = await detectDocumentWithOpenCv(canvas, hint);
-    if (result) return result;
+    const result = await timeoutAfter(detectDocumentWithOpenCv(canvas, hint), 12_000, "The detailed analyzer was unavailable.");
+    if (result?.found) return result;
   } catch {
-    // A failed analyzer must never become a confidently wrong crop.
+    // Continue with the lightweight on-device detector below.
   }
+  const fallback = await detectDocumentLegacy(source);
+  if (fallback.found) return fallback;
   return {
     corners: (hint ?? DEFAULT_CORNERS).map((point) => ({ ...point })) as [Point, Point, Point, Point],
     confidence: 0,
@@ -290,9 +304,37 @@ export async function correctPerspective(
   outputCanvas.height = outputHeight;
   const outputContext = outputCanvas.getContext("2d");
   if (!outputContext) throw new Error("Unable to create the corrected image.");
-  const { warpDocumentWithOpenCv } = await import("./opencv-document");
-  const corrected = await warpDocumentWithOpenCv(sourceCanvas, corners, outputWidth, outputHeight);
-  outputContext.putImageData(new ImageData(corrected.data, corrected.width, corrected.height), 0, 0);
+  try {
+    const { warpDocumentWithOpenCv } = await import("./opencv-document");
+    const corrected = await timeoutAfter(warpDocumentWithOpenCv(sourceCanvas, corners, outputWidth, outputHeight), 5_000, "Using compatible perspective correction.");
+    outputContext.putImageData(new ImageData(corrected.data, corrected.width, corrected.height), 0, 0);
+  } catch {
+    const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
+    if (!sourceContext) throw new Error("Unable to read the image.");
+    const sourceData = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height).data;
+    const output = outputContext.createImageData(outputWidth, outputHeight);
+    const transform = squareToQuadrilateral(orderDocumentPoints(corners), sourceCanvas.width, sourceCanvas.height);
+    for (let y = 0; y < outputHeight; y += 1) {
+      const v = y / Math.max(1, outputHeight - 1);
+      for (let x = 0; x < outputWidth; x += 1) {
+        const u = x / Math.max(1, outputWidth - 1);
+        const divisor = transform.g * u + transform.h * v + 1;
+        const sourceX = Math.max(0, Math.min(sourceCanvas.width - 1, (transform.a * u + transform.b * v + transform.c) / divisor));
+        const sourceY = Math.max(0, Math.min(sourceCanvas.height - 1, (transform.d * u + transform.e * v + transform.f) / divisor));
+        const left = Math.floor(sourceX), top = Math.floor(sourceY);
+        const right = Math.min(sourceCanvas.width - 1, left + 1), bottom = Math.min(sourceCanvas.height - 1, top + 1);
+        const fx = sourceX - left, fy = sourceY - top;
+        const destination = (y * outputWidth + x) * 4;
+        for (let channel = 0; channel < 3; channel += 1) {
+          const topValue = sourceData[(top * sourceCanvas.width + left) * 4 + channel] * (1 - fx) + sourceData[(top * sourceCanvas.width + right) * 4 + channel] * fx;
+          const bottomValue = sourceData[(bottom * sourceCanvas.width + left) * 4 + channel] * (1 - fx) + sourceData[(bottom * sourceCanvas.width + right) * 4 + channel] * fx;
+          output.data[destination + channel] = topValue * (1 - fy) + bottomValue * fy;
+        }
+        output.data[destination + 3] = 255;
+      }
+    }
+    outputContext.putImageData(output, 0, 0);
+  }
   return new Promise((resolve, reject) => {
     outputCanvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("Unable to encode the corrected image."))),
