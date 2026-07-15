@@ -1,0 +1,12 @@
+{
+  "name": "LicenseSizer",
+  "short_name": "LicenseSizer",
+  "description": "Create a clean, true-size license PDF without uploading your photos.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7faf9",
+  "theme_color": "#123f55",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

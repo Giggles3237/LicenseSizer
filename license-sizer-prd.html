@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>LicenseSizer — Product Requirements Document</title>
+  <style>
+    :root { --ink:#172033; --muted:#667085; --brand:#195a72; --brand2:#27a087; --paper:#fff; --wash:#eef7f5; --line:#d8e2e8; --warn:#fff6df; --danger:#fff0f0; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; color:var(--ink); background:#eaf0f3; font:15px/1.58 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .page { max-width:1120px; margin:28px auto; background:var(--paper); box-shadow:0 18px 60px #18304426; }
+    .hero { padding:64px 72px 48px; color:white; background:linear-gradient(135deg,#123f55 0%,#195a72 60%,#1e8e82 100%); }
+    .eyebrow { margin:0 0 14px; font-size:12px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; opacity:.8; }
+    h1 { margin:0; font-size:clamp(38px,6vw,68px); line-height:1; letter-spacing:-.04em; }
+    .subtitle { max-width:760px; margin:20px 0 28px; font-size:21px; line-height:1.45; opacity:.9; }
+    .meta { display:flex; flex-wrap:wrap; gap:10px; }
+    .chip { padding:7px 11px; border:1px solid #ffffff45; border-radius:999px; background:#ffffff12; font-size:13px; }
+    .content { padding:46px 72px 72px; }
+    nav { margin:-68px 0 42px; padding:22px 25px; border:1px solid var(--line); border-radius:15px; background:white; box-shadow:0 10px 30px #18304418; }
+    nav strong { display:block; margin-bottom:10px; color:var(--brand); }
+    nav .links { display:grid; grid-template-columns:repeat(4,1fr); gap:6px 18px; }
+    nav a { color:#35465b; text-decoration:none; font-size:13px; }
+    nav a:hover { color:var(--brand2); text-decoration:underline; }
+    section { margin:0 0 54px; scroll-margin-top:18px; }
+    h2 { margin:0 0 18px; padding-bottom:9px; border-bottom:2px solid var(--brand2); font-size:27px; line-height:1.2; letter-spacing:-.02em; }
+    h3 { margin:28px 0 9px; font-size:18px; color:var(--brand); }
+    h4 { margin:18px 0 6px; font-size:15px; }
+    p { margin:8px 0 14px; }
+    ul,ol { margin:8px 0 18px; padding-left:22px; }
+    li { margin:5px 0; }
+    .lead { font-size:18px; color:#344054; }
+    .callout { margin:18px 0; padding:18px 20px; border-left:5px solid var(--brand2); border-radius:7px; background:var(--wash); }
+    .warning { border-left-color:#d98b18; background:var(--warn); }
+    .danger { border-left-color:#c94747; background:var(--danger); }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+    .grid.three { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .card { padding:18px; border:1px solid var(--line); border-radius:11px; background:#fff; }
+    .card h3,.card h4 { margin-top:0; }
+    table { width:100%; margin:14px 0 24px; border-collapse:collapse; font-size:13px; }
+    th,td { padding:10px 11px; border:1px solid var(--line); vertical-align:top; text-align:left; }
+    th { color:#244152; background:#edf6f7; font-weight:750; }
+    code { padding:.12em .34em; border-radius:4px; color:#7d2d3b; background:#f6f1f2; font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; }
+    pre { overflow:auto; margin:12px 0 22px; padding:16px; border-radius:9px; color:#e9f4f2; background:#142934; font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace; white-space:pre-wrap; }
+    .flow { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:15px 0; }
+    .flow span { padding:9px 12px; border:1px solid var(--line); border-radius:8px; background:#f9fbfc; font-weight:650; }
+    .flow i { color:var(--brand2); font-style:normal; font-weight:900; }
+    .req { font-weight:750; color:var(--brand); white-space:nowrap; }
+    .status { display:inline-block; padding:2px 7px; border-radius:999px; color:#175f56; background:#dff5ef; font-size:11px; font-weight:800; text-transform:uppercase; }
+    .footer { padding:30px 72px; color:#5d6876; background:#f3f6f8; font-size:12px; }
+    .checklist { list-style:none; padding-left:0; }
+    .checklist li::before { content:"□"; margin-right:8px; color:var(--brand2); font-weight:bold; }
+    a { color:#12677b; }
+    @media (max-width:760px) { .page{margin:0}.hero{padding:42px 24px 62px}.content{padding:34px 24px 48px}.footer{padding:24px}.grid,.grid.three{grid-template-columns:1fr}nav .links{grid-template-columns:repeat(2,1fr)}table{display:block;overflow-x:auto}h1{font-size:42px}.subtitle{font-size:18px} }
+    @page { size:letter; margin:0.58in; }
+    @media print { body{background:white;font-size:10pt}.page{max-width:none;margin:0;box-shadow:none}.hero{padding:32px 36px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.hero h1{font-size:38pt}.content{padding:28px 0}.footer{padding:18px 0;background:white}nav{margin:0 0 28px;box-shadow:none;break-inside:avoid}section{break-before:page;margin-bottom:24px}section:first-of-type{break-before:auto}.card,.callout,table,pre{break-inside:avoid}a{color:inherit;text-decoration:none}a[href^="http"]::after{content:" (" attr(href) ")";font-size:8pt;word-break:break-all}.no-print{display:none!important} }
+  </style>
+</head>
+<body>
+<main class="page">
+  <header class="hero">
+    <p class="eyebrow">Product Requirements Document · Version 1.0</p>
+    <h1>LicenseSizer</h1>
+    <p class="subtitle">Turn a phone photo into a clean, print-ready, true-size driver’s-license PDF in under 30 seconds.</p>
+    <div class="meta"><span class="chip">Prepared July 14, 2026</span><span class="chip">MVP handoff</span><span class="chip">Mobile-first PWA</span><span class="chip">Privacy-first local processing</span></div>
+  </header>
+
+  <div class="content">
+    <nav aria-label="Document contents">
+      <strong>Contents</strong>
+      <div class="links">
+        <a href="#summary">1. Product vision</a><a href="#scope">2. Goals &amp; scope</a><a href="#users">3. Users &amp; stories</a><a href="#ux">4. UX flow</a>
+        <a href="#functional">5. Functional requirements</a><a href="#processing">6. Image processing</a><a href="#pdf">7. PDF math</a><a href="#quality">8. Nonfunctional requirements</a>
+        <a href="#privacy">9. Privacy &amp; compliance</a><a href="#support">10. Browser support</a><a href="#architecture">11. Architecture</a><a href="#data">12. Data &amp; modules</a>
+        <a href="#acceptance">13. Acceptance criteria</a><a href="#qa">14. QA plan</a><a href="#delivery">15. Milestones</a><a href="#handoff">16. Handoff notes</a>
+      </div>
+    </nav>
+
+    <section id="summary">
+      <h2>1. Product vision</h2>
+      <p class="lead"><strong>Problem:</strong> photographs of identity cards arrive crooked, uncropped, overlarge, shadowed, or in inconvenient formats. Staff then waste time manually correcting them, and printouts often do not match the physical card.</p>
+      <div class="callout"><strong>Product promise.</strong> A user can capture the front and optionally the back of a driver’s license, review an automatically corrected result, and share a PDF whose card image is laid out at the nominal ID‑1 physical size. No account is required and, by default, no image leaves the device.</div>
+      <h3>Positioning</h3>
+      <p>LicenseSizer is a capture-and-layout utility, not an identity-verification service. It does not authenticate a credential, check government records, certify the holder, or guarantee that a printer will honor the PDF’s physical scale.</p>
+      <h3>North-star outcome</h3>
+      <p>At least 90% of first-time users with a supported phone produce a readable, correctly laid-out PDF without instructions from another person.</p>
+      <h3>Success metrics</h3>
+      <table><thead><tr><th>Metric</th><th>MVP target</th><th>Measurement</th></tr></thead><tbody>
+        <tr><td>Median task time</td><td>≤ 30 seconds from start to PDF-ready</td><td>Privacy-preserving, opt-in aggregate events only</td></tr>
+        <tr><td>First-pass capture acceptance</td><td>≥ 80% in normal indoor lighting</td><td>Local quality gate result; aggregate counts</td></tr>
+        <tr><td>Layout accuracy</td><td>Card placement within ±0.5 mm in PDF coordinates</td><td>Automated PDF geometry tests</td></tr>
+        <tr><td>Successful completion</td><td>≥ 95% after one retry on supported devices</td><td>Generated or shared/downloaded event</td></tr>
+        <tr><td>Sensitive-data retention</td><td>0 server-side image bytes in default mode</td><td>Architecture review and network inspection</td></tr>
+      </tbody></table>
+    </section>
+
+    <section id="scope">
+      <h2>2. Goals, non-goals, and scope</h2>
+      <div class="grid">
+        <div class="card"><h3>Goals</h3><ul>
+          <li>Capture or upload front and optional back images.</li><li>Detect four card corners and correct perspective.</li><li>Guide users through blur, glare, cutoff, and low-light problems.</li><li>Generate Letter or A4 PDFs with nominal 1:1 ID‑1 placement.</li><li>Invoke the native share sheet when file sharing is available; always provide download.</li><li>Work well with one hand, large touch targets, and assistive technology.</li><li>Keep images in volatile client memory by default.</li>
+        </ul></div>
+        <div class="card"><h3>Explicit non-goals for MVP</h3><ul>
+          <li>Identity verification, fraud detection, age verification, or document authenticity.</li><li>OCR, PDF417 decoding, facial recognition, or biometric matching.</li><li>Government, DMV, lender, DMS, or CRM integrations.</li><li>“Reconstructing” text hidden by glare or blur.</li><li>Cloud history, user accounts, long-lived share links, or analytics containing document content.</li><li>Guaranteeing physical output when a print dialog uses “Fit,” scaling, or device-specific margins.</li>
+        </ul></div>
+      </div>
+      <h3>MVP decisions</h3>
+      <table><thead><tr><th>Decision</th><th>Default</th><th>Rationale</th></tr></thead><tbody>
+        <tr><td>Processing location</td><td>Browser only</td><td>Reduces custody, breach surface, latency, and compliance burden.</td></tr>
+        <tr><td>Card format</td><td>ID‑1: 85.60 × 53.98 mm</td><td>Common nominal format for driver’s-license-sized cards; do not infer authenticity.</td></tr>
+        <tr><td>Output</td><td>One card side per row, front then back, centered on page</td><td>Readable, simple, and avoids “duplex” ambiguity.</td></tr>
+        <tr><td>Enhancement</td><td>Conservative</td><td>Preserve documentary fidelity; never synthesize or alter characters.</td></tr>
+        <tr><td>Storage</td><td>None after tab/session is cleared</td><td>Least-data principle.</td></tr>
+      </tbody></table>
+    </section>
+
+    <section id="users">
+      <h2>3. Personas and user stories</h2>
+      <div class="grid three">
+        <div class="card"><h3>Alex · dealership salesperson</h3><p>Needs a consistent PDF while standing with a customer. Values speed, clear retake guidance, and Messages/email sharing.</p></div>
+        <div class="card"><h3>Morgan · title/office specialist</h3><p>Receives inconsistent images. Values exact layout, front/back labeling, legibility, and predictable filenames.</p></div>
+        <div class="card"><h3>Jordan · consumer</h3><p>Has no scanner and little technical context. Values reassurance, privacy, and a simple “capture → preview → share” path.</p></div>
+      </div>
+      <h3>Primary user stories</h3>
+      <ul>
+        <li>As a phone user, I want to photograph the front and back so I can send one correctly laid-out PDF.</li>
+        <li>As a privacy-conscious user, I want confirmation that images stay on my device so I can make an informed choice.</li>
+        <li>As a user with an existing image, I want to upload it instead of granting camera access.</li>
+        <li>As a user with a poor capture, I want a specific explanation and an easy retake action.</li>
+        <li>As an office recipient, I want a standard filename, page size, and front/back ordering.</li>
+        <li>As a screen-reader or keyboard user, I want every action labeled and usable without drag-only controls.</li>
+        <li>As a user on a browser without file sharing, I want to download the PDF without losing work.</li>
+      </ul>
+      <h3>Jobs-to-be-done</h3>
+      <p>“When someone asks me for a copy of a license, help me create a clean document from my phone that prints at the intended card size, so I do not need a scanner or image editor.”</p>
+    </section>
+
+    <section id="ux">
+      <h2>4. Experience and screen flow</h2>
+      <div class="flow"><span>Start</span><i>→</i><span>Capture front</span><i>→</i><span>Quality check</span><i>→</i><span>Add/skip back</span><i>→</i><span>Review &amp; adjust</span><i>→</i><span>PDF options</span><i>→</i><span>Share/download</span></div>
+      <h3>Screen 1 — Start</h3>
+      <ul><li>Primary: <strong>Scan a license</strong>. Secondary: <strong>Upload photos</strong>.</li><li>Plain-language notice: “Your images are processed on this device and are not uploaded in the standard version.”</li><li>One-tap link to privacy details; no account or email gate.</li></ul>
+      <h3>Screen 2 — Capture front</h3>
+      <ul><li>Request rear camera only after a user gesture. Show live 1.586:1 guide, outside area dimmed, and concise instruction.</li><li>Default to manual shutter. Auto-capture may activate only after the quadrilateral is stable and quality thresholds pass for 500–800 ms.</li><li>Flash/torch control only when supported. Never show a dead control.</li><li>Fallback to <code>&lt;input type="file" accept="image/*" capture="environment"&gt;</code> or normal picker.</li></ul>
+      <h3>Screen 3 — Quality check</h3>
+      <p>Run locally. If acceptable, advance automatically with a brief confirmation. If not, retain the image until the user chooses retake and show one prioritized instruction: “Move closer,” “Hold steady,” “Reduce glare,” “Show all four corners,” or “Use more light.” Do not claim quality that was not measured.</p>
+      <h3>Screen 4 — Back</h3>
+      <p>Offer <strong>Capture back</strong> and <strong>Skip back</strong>. Explain that the barcode is treated as image content and is not decoded in MVP.</p>
+      <h3>Screen 5 — Review</h3>
+      <ul><li>Show corrected front/back with clear labels and a “processed preview” badge.</li><li>Controls: retake, rotate 90°, adjust corners, reset auto-crop. Corner handles must have large hit areas and keyboard-accessible alternatives.</li><li>Do not show “actual size” on a screen: CSS/device pixels cannot reliably represent physical millimeters. Label it “PDF layout preview.”</li></ul>
+      <h3>Screen 6 — Export</h3>
+      <ul><li>Page: US Letter (default by locale) or A4. Layout: front only, front/back stacked, or separate pages.</li><li>Optional labels and crop marks, off by default. Image quality: Standard (target 200 ppi) or High (300 ppi).</li><li>Show print instruction: “In the print dialog choose Actual size / 100%; turn off Fit to page.”</li></ul>
+      <h3>Screen 7 — Complete</h3>
+      <p>Primary action is <strong>Share PDF</strong> only if <code>navigator.canShare({files:[file]})</code> returns true. Otherwise primary is <strong>Download PDF</strong>. Keep both when supported. Share must execute directly from a tap to preserve transient user activation. After completion, offer <strong>Start over &amp; clear images</strong>.</p>
+      <h3>State and recovery</h3>
+      <table><thead><tr><th>Situation</th><th>Required response</th></tr></thead><tbody>
+        <tr><td>Camera denied</td><td>Explain how to enable it; keep “Upload photos” available.</td></tr><tr><td>Processing fails</td><td>Preserve source image; allow manual four-corner crop or retake.</td></tr>
+        <tr><td>Share canceled</td><td>Return to completed screen without error or regeneration.</td></tr><tr><td>Tab backgrounded</td><td>Stop camera tracks; retain in-memory work when possible and resume explicitly.</td></tr>
+        <tr><td>Memory pressure</td><td>Downsample working copy; retain full-enough source for chosen output or tell user before degrading.</td></tr><tr><td>Unsupported HEIC decode</td><td>Offer another capture/file; do not upload silently for conversion.</td></tr>
+      </tbody></table>
+    </section>
+
+    <section id="functional">
+      <h2>5. Functional requirements</h2>
+      <table><thead><tr><th>ID</th><th>Requirement</th><th>Priority</th></tr></thead><tbody>
+        <tr><td class="req">CAP-01</td><td>Capture rear-camera stills on supported mobile browsers over HTTPS, after explicit permission.</td><td>P0</td></tr>
+        <tr><td class="req">CAP-02</td><td>Upload JPEG, PNG, WebP, and browser-decodable HEIC/HEIF; normalize EXIF orientation before analysis.</td><td>P0</td></tr>
+        <tr><td class="req">CAP-03</td><td>Support front-only and front-plus-back sessions; require the front.</td><td>P0</td></tr>
+        <tr><td class="req">CAP-04</td><td>Stop every <code>MediaStreamTrack</code> when leaving capture, hiding the tab, or starting over.</td><td>P0</td></tr>
+        <tr><td class="req">IMG-01</td><td>Detect the most plausible ID‑1-like quadrilateral, order corners, and apply a projective transform.</td><td>P0</td></tr>
+        <tr><td class="req">IMG-02</td><td>Calculate local blur, clipping, glare, brightness, and resolution signals and provide deterministic retake guidance.</td><td>P0</td></tr>
+        <tr><td class="req">IMG-03</td><td>Provide manual four-corner correction and rotation when automatic detection is uncertain.</td><td>P0</td></tr>
+        <tr><td class="req">IMG-04</td><td>Enhancements must be reversible and limited to global/local tonal correction and mild sharpening; no generative fill.</td><td>P0</td></tr>
+        <tr><td class="req">PDF-01</td><td>Generate fully client-side Letter and A4 PDFs with card boxes exactly 242.6457 × 153.0142 PDF points.</td><td>P0</td></tr>
+        <tr><td class="req">PDF-02</td><td>Preserve aspect ratio; use cover-crop only against the corrected ID‑1 canvas, never stretch.</td><td>P0</td></tr>
+        <tr><td class="req">PDF-03</td><td>Support front only, stacked front/back, and one side per page; label side only when enabled.</td><td>P1</td></tr>
+        <tr><td class="req">SHR-01</td><td>Create a PDF <code>File</code>, capability-check native file share, and invoke it from a direct user gesture.</td><td>P0</td></tr>
+        <tr><td class="req">SHR-02</td><td>Always offer Blob URL download with filename <code>license-copy-YYYY-MM-DD.pdf</code>; revoke obsolete URLs.</td><td>P0</td></tr>
+        <tr><td class="req">PRV-01</td><td>Default mode makes no network request containing images, document pixels, OCR, filenames, or generated PDF bytes.</td><td>P0</td></tr>
+        <tr><td class="req">PRV-02</td><td>Clear image buffers, object URLs, canvases, and session state on start-over and best-effort on unload.</td><td>P0</td></tr>
+        <tr><td class="req">A11Y-01</td><td>Meet WCAG 2.2 AA for the application workflow, including focus, labels, error association, contrast, zoom, and 24×24 CSS-pixel minimum targets.</td><td>P0</td></tr>
+        <tr><td class="req">PWA-01</td><td>Installable shell and processing assets may work offline after first load; sensitive session data must not enter Cache Storage.</td><td>P1</td></tr>
+      </tbody></table>
+    </section>
+
+    <section id="processing">
+      <h2>6. Image-processing specification</h2>
+      <h3>Pipeline</h3>
+      <ol>
+        <li><strong>Decode:</strong> use <code>createImageBitmap</code> when available; apply orientation; reject invalid or decompression-bomb-like dimensions before allocating full canvases.</li>
+        <li><strong>Analysis copy:</strong> downsample longest edge to approximately 1280 px. Keep the source only for the final warp.</li>
+        <li><strong>Normalize for detection:</strong> convert to grayscale; mild Gaussian blur; generate adaptive/Canny edges; use morphological close to connect boundaries.</li>
+        <li><strong>Find candidates:</strong> extract contours; polygon-approximate to convex quadrilaterals; exclude tiny, edge-clipped, or self-intersecting results.</li>
+        <li><strong>Score:</strong> weighted combination of area, rectangularity, corner angles, edge strength, center proximity, and closeness to ID‑1 aspect ratio (1.58577), allowing perspective distortion.</li>
+        <li><strong>Order corners:</strong> top-left, top-right, bottom-right, bottom-left; validate winding and nonzero area.</li>
+        <li><strong>Warp:</strong> compute homography and resample from original resolution into a canonical landscape canvas. Use 1011 × 638 px for 300 ppi nominal output (rounded from physical dimensions); do not upscale a low-resolution source merely to imply detail.</li>
+        <li><strong>Enhance:</strong> optional white-balance/contrast normalization and conservative unsharp mask. Maintain an unenhanced corrected image and provide a toggle if enhancement materially changes appearance.</li>
+        <li><strong>Quality score:</strong> run before acceptance and again on the corrected output. Record signals in memory, not card content.</li>
+        <li><strong>Encode:</strong> JPEG at an empirically chosen quality (initial 0.90 high / 0.82 standard) unless transparency or artifacts require PNG. Validate PDF size on real devices.</li>
+      </ol>
+      <h3>Candidate scoring sketch</h3>
+      <pre>score = 0.30 * areaCoverage
+      + 0.20 * rectangularity
+      + 0.15 * angleQuality
+      + 0.15 * aspectPlausibility
+      + 0.10 * boundaryStrength
+      + 0.10 * centerProximity
+
+accept automatically only when score ≥ calibratedThreshold
+and all four corners have confidence ≥ cornerThreshold;</pre>
+      <h3>Quality heuristics (calibrate with a representative dataset)</h3>
+      <table><thead><tr><th>Signal</th><th>Initial method</th><th>User guidance</th></tr></thead><tbody>
+        <tr><td>Blur</td><td>Variance of Laplacian on card ROI, normalized for scale; threshold by device corpus.</td><td>“Hold steady and tap to focus.”</td></tr>
+        <tr><td>Glare</td><td>Connected near-white, low-saturation regions intersecting the card; flag large or text-area-like regions without interpreting text.</td><td>“Tilt the card or move away from direct light.”</td></tr>
+        <tr><td>Cutoff</td><td>Candidate touches analysis frame or lacks four confident corners.</td><td>“Move back so all four corners are visible.”</td></tr>
+        <tr><td>Too small</td><td>Card candidate covers less than calibrated frame percentage or yields below-target corrected pixels.</td><td>“Move closer.”</td></tr>
+        <tr><td>Low/high exposure</td><td>Histogram tails and clipped-channel percentage.</td><td>“Use softer, brighter light.”</td></tr>
+        <tr><td>Perspective</td><td>Extreme side-length ratios or homography conditioning.</td><td>“Hold the phone more directly above the card.”</td></tr>
+      </tbody></table>
+      <div class="callout warning"><strong>Document fidelity rule.</strong> Glare removal must never invent pixels, letters, portraits, signatures, barcodes, or security patterns. If information is obscured, require a retake. “AI repair” is outside MVP and should remain outside any evidentiary-document workflow.</div>
+      <h3>Manual crop interaction</h3>
+      <p>Overlay four numbered handles on the source. Constrain only against self-intersection and image bounds; do not force a rectangle before the transform. Provide zoom/pan, reset, and four form fields or directional controls for non-pointer input. Announce crop confidence without blocking export when the user explicitly accepts a warning.</p>
+    </section>
+
+    <section id="pdf">
+      <h2>7. Physical sizing and PDF mathematics</h2>
+      <p>The nominal ID‑1 dimensions are <strong>85.60 mm × 53.98 mm</strong>. A PDF point is 1/72 inch and 1 inch is 25.4 mm. Physical placement must therefore use PDF coordinates—not image DPI metadata and not CSS pixels.</p>
+      <pre>points = millimeters × 72 / 25.4
+
+width  = 85.60 × 72 / 25.4 = 242.645669... pt
+height = 53.98 × 72 / 25.4 = 153.014173... pt
+
+US Letter = 8.5 × 11 in = 612 × 792 pt
+A4        = 210 × 297 mm = 595.2756 × 841.8898 pt
+
+300 ppi raster target:
+width  = round(85.60 / 25.4 × 300) = 1011 px
+height = round(53.98 / 25.4 × 300) = 638 px</pre>
+      <h3>Default placement</h3>
+      <ul><li>Center horizontally. For front only, center vertically or use a stable 1-inch top margin; choose one and snapshot-test it.</li><li>For stacked front/back, use a minimum 36 pt (0.5 inch) vertical gap; center the group on the page.</li><li>Draw images at exactly the calculated card width/height. Image sampling resolution affects clarity, not physical dimensions.</li><li>Optional crop marks sit outside the card box and must not change its placement or scale.</li><li>Add PDF metadata title “License copy” and creation date; do not put a person’s name, license number, or other extracted content in metadata.</li></ul>
+      <h3>Print reality and calibration</h3>
+      <p>The PDF can encode correct dimensions, but browsers, OS print dialogs, printer drivers, and unprintable margins can rescale output. The completion screen and PDF should state: <strong>Print at 100% / Actual size; disable Fit, Shrink, or Scale to page.</strong> For QA, print a calibration sheet containing a 100 mm line and measure it with a physical ruler. Do not market “guaranteed exact print size.”</p>
+    </section>
+
+    <section id="quality">
+      <h2>8. Nonfunctional requirements</h2>
+      <table><thead><tr><th>Area</th><th>Requirement</th></tr></thead><tbody>
+        <tr><td>Performance</td><td>Interactive shell LCP target ≤ 2.5 s on a representative mid-range phone/4G; first processing feedback ≤ 250 ms; typical single-side processing ≤ 5 s; PDF generation ≤ 2 s after images are ready.</td></tr>
+        <tr><td>Responsiveness</td><td>No main-thread task over 200 ms during interaction where feasible; run OpenCV/WASM and heavy raster work in a Web Worker with progress events.</td></tr>
+        <tr><td>Memory</td><td>Release intermediate matrices immediately; cap decoded dimensions; avoid simultaneous full-resolution canvases; test two 12 MP inputs on target iPhones and Android devices.</td></tr>
+        <tr><td>Reliability</td><td>Never lose an accepted capture because a later step fails. Errors are recoverable without page reload where browser memory permits.</td></tr>
+        <tr><td>Accessibility</td><td>WCAG 2.2 AA target; semantic headings, visible focus, live-region processing status, reduced motion, 200% zoom, portrait/landscape support, no color-only quality states.</td></tr>
+        <tr><td>Localization</td><td>English MVP; isolate copy and locale-sensitive page default/date formatting. Do not embed personal data into translation services.</td></tr>
+        <tr><td>Observability</td><td>Errors use coarse codes and device capability flags. Never log image blobs, canvas data URLs, OCR, path names, license fields, or PDF bytes.</td></tr>
+        <tr><td>Offline</td><td>After the application shell and processing bundle have been cached, capture-to-download works without network. Native sharing remains OS-dependent.</td></tr>
+      </tbody></table>
+    </section>
+
+    <section id="privacy">
+      <h2>9. Privacy, security, and compliance caveats</h2>
+      <div class="callout danger"><strong>High-sensitivity data.</strong> A driver’s license image contains personal information and may include address, birth date, identifier, signature, portrait, and machine-readable data. Treat the entire image and resulting PDF as sensitive—even if the application never reads those fields.</div>
+      <h3>Privacy design</h3>
+      <ul><li>Client-only processing is the MVP boundary. No image upload endpoint exists.</li><li>No accounts, cloud backup, recent-document list, server thumbnails, or URL-based sharing.</li><li>Store active image bytes in memory. Do not use Local Storage, IndexedDB, session replay, crash attachments, or service-worker caches for document data.</li><li>Analytics are opt-in or strictly necessary, aggregate, content-free, and documented. Consider shipping MVP without third-party analytics.</li><li>Clear data through an explicit action and on completion timeout; communicate that browser/OS downloads and shares are outside the app’s deletion control.</li></ul>
+      <h3>Application security controls</h3>
+      <ul><li>HTTPS with HSTS in production; camera access is unavailable to normal insecure origins.</li><li>Strict Content Security Policy; self-host processing dependencies and fonts; no ad scripts or tag managers.</li><li>Recommended headers: <code>Permissions-Policy: camera=(self)</code>, <code>Referrer-Policy: no-referrer</code>, <code>X-Content-Type-Options: nosniff</code>, and appropriate clickjacking defense via CSP <code>frame-ancestors 'none'</code>.</li><li>Validate MIME signature, decode success, dimensions, pixel count, and file size. Treat all metadata as untrusted; strip EXIF/GPS by re-encoding corrected pixels.</li><li>Pin dependencies with lockfile and automated vulnerability review. Prefer a static deployment with no runtime application server.</li><li>Test that service-worker routes never cache Blob URLs, POST bodies, images, or PDFs.</li></ul>
+      <h3>Compliance and legal review</h3>
+      <p>This document is product guidance, not legal advice. Before deployment, counsel and the deploying organization must assess applicable privacy, consumer-protection, records-retention, breach-notification, identity-document copying, employment, financial-services, insurance, and state-specific rules. Requirements vary by jurisdiction and business purpose.</p>
+      <ul><li>Display a legitimate-purpose/consent reminder before capture where the operator is scanning someone else’s credential.</li><li>Publish an accurate privacy notice describing local processing, any telemetry, download behavior, third-party share targets, and retention.</li><li>Do not claim compliance with GDPR, CCPA/CPRA, GLBA, HIPAA, DPPA, SOC 2, or any sector rule without a scoped legal/security assessment. Whether a rule applies depends on actor, purpose, data flow, and jurisdiction.</li><li>Do not call output a “certified copy,” “verified license,” or “government-approved copy.”</li><li>For dealership or lender deployment, define authorized purpose, access procedures, retention, and secure transfer outside this app.</li></ul>
+      <h3>Threat model highlights</h3>
+      <table><thead><tr><th>Threat</th><th>Mitigation</th><th>Residual risk</th></tr></thead><tbody>
+        <tr><td>Third-party script exfiltration</td><td>No third-party runtime JS; CSP; self-host assets; dependency review.</td><td>Compromised first-party build or browser.</td></tr>
+        <tr><td>Shared-device remnants</td><td>Memory-only session, explicit clear, no app history.</td><td>Downloaded/shared files and OS/browser caches.</td></tr>
+        <tr><td>Malicious image input</td><td>Browser decoder isolation, byte/dimension limits, updated dependencies.</td><td>Unknown browser/codec vulnerabilities.</td></tr>
+        <tr><td>Accidental wrong recipient</td><td>Use OS share sheet, generic filename, confirmation guidance.</td><td>App cannot inspect or revoke external delivery.</td></tr>
+        <tr><td>False confidence in image enhancement</td><td>Conservative transforms, retake on obscured data, no generative repair.</td><td>Human may still misread poor source.</td></tr>
+      </tbody></table>
+    </section>
+
+    <section id="support">
+      <h2>10. Browser and device support</h2>
+      <p>Use capability detection rather than user-agent branching. Pin and test a release matrix at build time; browser support changes.</p>
+      <table><thead><tr><th>Tier</th><th>Targets</th><th>Expected experience</th></tr></thead><tbody>
+        <tr><td>Tier 1</td><td>Current and previous major Safari on supported iOS; current and previous major Chrome on supported Android.</td><td>Camera/upload, processing, PDF, native file sharing when capability check passes, download fallback, installable PWA where OS permits.</td></tr>
+        <tr><td>Tier 2</td><td>Current Chrome, Edge, Safari, and Firefox desktop.</td><td>Upload/webcam where available, processing, PDF, download; share only when supported.</td></tr>
+        <tr><td>Unsupported/degraded</td><td>In-app browsers, old OS browsers, managed browsers with camera/share policies, browsers lacking required WASM/canvas APIs.</td><td>Explain limitation and offer file upload or download where possible.</td></tr>
+      </tbody></table>
+      <h3>Capability gates</h3>
+      <pre>camera:  window.isSecureContext && navigator.mediaDevices?.getUserMedia
+share:   navigator.share && navigator.canShare?.({ files: [pdfFile] })
+worker:  window.Worker
+wasm:    typeof WebAssembly === "object"
+decode:  createImageBitmap with HTMLImageElement fallback
+offline: "serviceWorker" in navigator</pre>
+      <p>Reference behavior: <a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia">MDN getUserMedia</a> documents the secure-context and permission requirements. <a href="https://developer.mozilla.org/en-US/docs/Web/API/Navigator/share">MDN Navigator.share</a> documents user activation, file capability checking, and PDF as a usually shareable type. Validate behavior on physical devices; emulators are insufficient for camera, memory, permission, and share-sheet behavior.</p>
+    </section>
+
+    <section id="architecture">
+      <h2>11. Proposed architecture and stack</h2>
+      <h3>Recommended MVP</h3>
+      <div class="grid">
+        <div class="card"><h3>Application</h3><ul><li>React + TypeScript + Vite (or Next.js static export if the team already standardizes on Next.js)</li><li>CSS Modules or Tailwind with a small token system</li><li>Zod for non-image settings/session validation</li><li>Vitest + Testing Library; Playwright for end-to-end</li></ul></div>
+        <div class="card"><h3>Media and output</h3><ul><li>MediaDevices + file input fallback</li><li>OpenCV.js/WASM in a dedicated Web Worker</li><li>Canvas/OffscreenCanvas when supported</li><li>pdf-lib for deterministic PDF coordinates</li><li>Workbox or minimal custom service worker for app-shell-only offline caching</li></ul></div>
+      </div>
+      <p>A static frontend is preferred because it makes the “no image server” boundary inspectable. Do not add a backend merely for hosting. If future secure links or integrations are approved, design them as a separate, opt-in mode with separate threat modeling, retention controls, audit logging, and policy.</p>
+      <h3>Component boundary</h3>
+      <pre>UI shell
+ ├─ CaptureController ── camera adapter / upload adapter
+ ├─ SessionStore ─────── in-memory state machine only
+ ├─ ProcessingClient ─── typed messages to image-worker
+ │   └─ image-worker ─── decode → detect → score → warp → encode
+ ├─ ReviewEditor ─────── crop/rotation controls
+ ├─ PdfComposer ──────── exact point geometry + metadata
+ ├─ ShareAdapter ─────── canShare/share/download
+ └─ TelemetryAdapter ─── disabled by default; coarse events only</pre>
+      <h3>State machine</h3>
+      <p><code>idle → acquiringFront → checkingFront → frontReady → acquiringBack? → checkingBack? → review → configuring → generating → complete</code>. Any acquisition/check state may enter <code>recoverableError</code>; start-over enters <code>clearing → idle</code>. Model this explicitly to prevent stale images, double captures, and share-before-ready bugs.</p>
+      <h3>Deployment</h3>
+      <ul><li>Static hosting/CDN with immutable hashed assets and HTML no-cache/revalidation.</li><li>HTTPS on the canonical origin. Test camera permissions after redirects and on installed PWA launch.</li><li>Self-host WASM using the same origin and correct MIME type. If using threads/SIMD, separately evaluate cross-origin isolation headers and browser fallbacks.</li><li>Automated CSP/header smoke test, bundle-size budget, dependency scan, and offline test in CI.</li></ul>
+    </section>
+
+    <section id="data">
+      <h2>12. Data model, interfaces, and modules</h2>
+      <p>MVP has no persistent database. The only model is an ephemeral in-memory session. Never serialize <code>Blob</code>, <code>ImageBitmap</code>, pixels, or PDF bytes into browser storage.</p>
+      <pre>type Side = "front" | "back";
+type Point = { x: number; y: number };
+
+type CaptureAsset = {
+  side: Side;
+  source: Blob;                 // volatile; never logged/persisted
+  width: number;
+  height: number;
+  corners?: [Point, Point, Point, Point];
+  corrected?: Blob;
+  quality: {
+    status: "pass" | "warn" | "fail";
+    blur: number;
+    glare: number;
+    clipping: boolean;
+    exposure: number;
+    resolution: number;
+    guidanceCode?: string;
+  };
+};
+
+type ExportOptions = {
+  pageSize: "letter" | "a4";
+  layout: "front-only" | "stacked" | "separate-pages";
+  quality: "standard" | "high";
+  labels: boolean;
+  cropMarks: boolean;
+};
+
+type ScanSession = {
+  id: string;                   // random, memory-only; not in filename
+  state: WorkflowState;
+  front?: CaptureAsset;
+  back?: CaptureAsset;
+  options: ExportOptions;
+  generatedPdf?: Blob;
+};</pre>
+      <h3>Worker messages</h3>
+      <table><thead><tr><th>Command</th><th>Input</th><th>Output</th></tr></thead><tbody>
+        <tr><td><code>ANALYZE</code></td><td>Image Blob, side, max analysis dimension</td><td>Dimensions, ordered corners, confidence, quality metrics</td></tr>
+        <tr><td><code>WARP</code></td><td>Image Blob, four normalized corners, target pixel dimensions</td><td>Corrected image Blob and post-warp quality</td></tr>
+        <tr><td><code>CANCEL</code></td><td>Job ID</td><td>Cancellation acknowledgement and released matrices</td></tr>
+        <tr><td><code>DISPOSE</code></td><td>Session/job IDs</td><td>All associated worker-side buffers released</td></tr>
+      </tbody></table>
+      <h3>No MVP network API</h3>
+      <p>The static host serves HTML, JS, CSS, manifest, icons, and WASM. There is no <code>/upload</code>, OCR, conversion, email, SMS, or link-sharing endpoint. “Email” and “text” are destinations the operating system may expose through the native share sheet; the web app does not send messages itself.</p>
+      <h3>Content-free event vocabulary (only if approved)</h3>
+      <p><code>session_started</code>, <code>capture_source_selected</code>, <code>quality_result</code> (coarse outcome/reason only), <code>manual_crop_used</code>, <code>pdf_generated</code> (page/layout only), <code>share_invoked</code>, <code>download_invoked</code>, <code>session_cleared</code>. No persistent user/session identifier; no image-derived values beyond categorical quality reason.</p>
+    </section>
+
+    <section id="acceptance">
+      <h2>13. MVP acceptance criteria</h2>
+      <ul class="checklist">
+        <li>On a supported iPhone and Android phone over HTTPS, a first-time user can capture the front, optionally capture the back, and reach a corrected review.</li>
+        <li>Camera denial leaves the upload path fully usable; camera tracks stop when capture is no longer visible.</li>
+        <li>A fixture set of clean, rotated, and perspective-skewed cards produces ordered corners and a corrected aspect ratio within 0.2% of 85.60:53.98 for ≥ 95% of designated “expected pass” fixtures.</li>
+        <li>Low-confidence detection opens manual adjustment; it never silently crops a clearly wrong rectangle.</li>
+        <li>Blur, glare, cutoff, low-light, and too-small test fixtures show the mapped guidance, with calibrated false-positive/false-negative results documented.</li>
+        <li>Letter and A4 PDFs place each card image at 242.6457 × 153.0142 points within ±0.05 point in parsed page content/geometry tests.</li>
+        <li>At 100% print scaling, the calibration line measures 100 mm within the printer/test-method tolerance; deviations are documented.</li>
+        <li>Front/back order is stable; orientation is landscape; neither side is stretched.</li>
+        <li>When native PDF file sharing is supported, Share opens from a user tap. When unsupported or rejected, Download remains available.</li>
+        <li>Network inspection confirms no capture/PDF bytes leave the origin in default mode and no sensitive data is persisted in Local Storage, IndexedDB, Cache Storage, logs, or analytics.</li>
+        <li>Starting over revokes object URLs, clears the UI, disposes worker buffers, and starts a new empty session.</li>
+        <li>Automated accessibility scan has no serious/critical violations; manual keyboard, screen-reader, 200% zoom, reduced-motion, and touch-target checks pass.</li>
+        <li>The app shell can be loaded offline after first visit, and a complete capture/upload-to-download flow works without network on supported browsers.</li>
+        <li>The production build has a documented browser/device test matrix, dependency inventory, privacy notice, and support/contact path.</li>
+      </ul>
+    </section>
+
+    <section id="qa">
+      <h2>14. QA strategy and test cases</h2>
+      <h3>Fixture corpus</h3>
+      <p>Use synthetic, redacted, expired, or explicitly consented test credentials—never employees’ live credentials by convenience. Include varied card designs, skin tones/photos, lighting, backgrounds, camera resolutions, damage, transparent sleeves, and both front/back density. Maintain labeled expected outcomes and prevent fixtures from entering public artifacts.</p>
+      <table><thead><tr><th>ID</th><th>Test</th><th>Expected</th></tr></thead><tbody>
+        <tr><td>QA-01</td><td>Clean card on contrasting matte background, all corners visible.</td><td>Auto-detect passes; corrected ratio within tolerance.</td></tr>
+        <tr><td>QA-02</td><td>Card rotated 0°, 90°, 180°, 270° and EXIF orientation variants.</td><td>Correct displayed orientation; user rotation remains available.</td></tr>
+        <tr><td>QA-03</td><td>Moderate keystone perspective.</td><td>Four corners found and warp is rectangular without stretching.</td></tr>
+        <tr><td>QA-04</td><td>Corner outside frame.</td><td>Cutoff failure; no automatic acceptance.</td></tr>
+        <tr><td>QA-05</td><td>Motion blur and out-of-focus variants near threshold.</td><td>Correct prioritized guidance; calibration metrics recorded.</td></tr>
+        <tr><td>QA-06</td><td>Specular glare over a data region.</td><td>Retake prompt; obscured content is not synthesized.</td></tr>
+        <tr><td>QA-07</td><td>Complex background with another rectangle.</td><td>License wins or manual correction is requested; wrong crop not silently accepted.</td></tr>
+        <tr><td>QA-08</td><td>Large 12–48 MP inputs and two sides on target phones.</td><td>No tab crash; progress visible; memory released after export/clear.</td></tr>
+        <tr><td>QA-09</td><td>JPEG, PNG, WebP, HEIC where browser-decodable, corrupt file, spoofed MIME, huge dimensions.</td><td>Supported files work; invalid inputs fail safely with useful copy.</td></tr>
+        <tr><td>QA-10</td><td>Deny camera, revoke mid-session, background tab, rotate device.</td><td>Recoverable state; tracks stop; accepted images retained where safe.</td></tr>
+        <tr><td>QA-11</td><td>Generate every page/layout/quality combination.</td><td>Correct page size, order, card geometry, metadata, and filename.</td></tr>
+        <tr><td>QA-12</td><td>Share available, unavailable, canceled, and throws.</td><td>Correct action label; cancel is not failure; download always works.</td></tr>
+        <tr><td>QA-13</td><td>Offline after first load; cache inspection.</td><td>Workflow succeeds; only static assets are cached.</td></tr>
+        <tr><td>QA-14</td><td>Keyboard, VoiceOver iOS, TalkBack Android, desktop screen reader.</td><td>Logical focus, named controls, status announced, manual crop alternative usable.</td></tr>
+        <tr><td>QA-15</td><td>Network capture during entire workflow.</td><td>No request contains image/PDF/content or sensitive metadata.</td></tr>
+        <tr><td>QA-16</td><td>Print Letter/A4 on two printer/driver combinations at 100% and Fit.</td><td>100% matches calibration tolerance; Fit visibly demonstrates why warning is required.</td></tr>
+      </tbody></table>
+      <h3>Automation layers</h3>
+      <ul><li><strong>Unit:</strong> point/mm conversions, corner ordering, scoring, state transitions, filenames, page placement.</li><li><strong>Golden image:</strong> transform fixtures with perceptual/structural tolerances and human-reviewed baselines.</li><li><strong>PDF inspection:</strong> parse MediaBox and drawing transformation matrices; do not rely only on screenshots.</li><li><strong>Integration:</strong> worker lifecycle, cancellation, object URL revocation, share adapter stubs, no-persistence assertions.</li><li><strong>E2E:</strong> upload flows in CI plus physical-device camera/share runs before release.</li><li><strong>Security/privacy:</strong> CSP/headers, dependency scan, cache/storage inspection, telemetry payload tests, malicious file cases.</li></ul>
+    </section>
+
+    <section id="delivery">
+      <h2>15. Delivery plan, milestones, risks, and roadmap</h2>
+      <h3>Suggested milestones</h3>
+      <table><thead><tr><th>Milestone</th><th>Deliverable</th><th>Exit condition</th></tr></thead><tbody>
+        <tr><td>M0 · discovery (2–3 days)</td><td>Target device matrix, legal/privacy decisions, synthetic fixture corpus, wireflow, print calibration spike.</td><td>Open decisions assigned; geometry verified with a proof PDF.</td></tr>
+        <tr><td>M1 · vertical slice (1 week)</td><td>Upload → manual crop → corrected front → Letter PDF → download, entirely local.</td><td>Geometry and no-network tests pass.</td></tr>
+        <tr><td>M2 · mobile capture (1 week)</td><td>Camera lifecycle, front/back state machine, upload fallback, responsive accessible screens.</td><td>Physical iOS/Android capture path passes.</td></tr>
+        <tr><td>M3 · auto processing (1–2 weeks)</td><td>Worker-based detection, warp, quality guidance, manual fallback.</td><td>Calibrated fixture acceptance targets met.</td></tr>
+        <tr><td>M4 · export/share/PWA (1 week)</td><td>A4/layout options, native share capability path, offline shell, cleanup.</td><td>Share/download/offline/storage tests pass.</td></tr>
+        <tr><td>M5 · hardening/pilot (1 week)</td><td>Accessibility, memory/performance, security headers, privacy notice, field pilot.</td><td>All P0 acceptance criteria pass; go/no-go review complete.</td></tr>
+      </tbody></table>
+      <p>Estimate: roughly 5–7 engineering weeks for one experienced frontend engineer plus part-time design, QA, security, and legal support. Image-detection calibration and physical-device testing are the largest schedule variables.</p>
+      <h3>Key risks</h3>
+      <table><thead><tr><th>Risk</th><th>Likelihood / impact</th><th>Response</th></tr></thead><tbody>
+        <tr><td>Glare and holographic surfaces defeat detection/readability.</td><td>High / High</td><td>Capture guidance, deterministic reject, manual crop; no false “repair.”</td></tr>
+        <tr><td>Mobile memory exhaustion with full-resolution front/back.</td><td>Medium / High</td><td>Worker pipeline, staged decode/downsample, immediate disposal, device testing.</td></tr>
+        <tr><td>Native share behavior varies by browser/OS.</td><td>High / Medium</td><td>Capability check at tap time; download is first-class fallback.</td></tr>
+        <tr><td>Users print with Fit-to-page.</td><td>High / Medium</td><td>Clear instruction, calibration artifact, cautious marketing.</td></tr>
+        <tr><td>Sensitive data leaks through analytics/cache/logging.</td><td>Low / Critical</td><td>No third-party runtime, content-free tests, storage/network audits, CSP.</td></tr>
+        <tr><td>Product mistaken for identity verification.</td><td>Medium / High</td><td>Consistent non-verification language and legal review.</td></tr>
+        <tr><td>Auto-crop chooses a wrong rectangle.</td><td>Medium / High</td><td>Confidence threshold, visible preview, manual correction, corpus calibration.</td></tr>
+      </tbody></table>
+      <h3>Future roadmap (requires separate scope)</h3>
+      <ol><li><strong>Post-MVP:</strong> multiple copies per sheet, presets, optional watermark/timestamp, additional ID‑1 cards.</li><li><strong>Workflow expansion:</strong> batch sessions, passport/insurance/registration templates, organization policy controls.</li><li><strong>Enterprise:</strong> authenticated integration with DMS/CRM/document systems, explicit retention, audit and role controls.</li><li><strong>Secure delivery:</strong> expiring encrypted links only after threat model, recipient authentication, deletion guarantees, abuse controls, and legal approval.</li><li><strong>Machine-readable features:</strong> optional local OCR/PDF417 quality validation only; never conflate parsing with authenticity.</li></ol>
+    </section>
+
+    <section id="handoff">
+      <h2>16. Coding-agent handoff notes</h2>
+      <h3>Recommended implementation order</h3>
+      <ol><li>Build and test the pure PDF geometry module first. A wrong scale invalidates the product.</li><li>Implement upload + manual four-corner crop as the reliable vertical slice.</li><li>Add the explicit state machine and cleanup semantics before camera complexity.</li><li>Add camera acquisition and physical-device tests.</li><li>Move analysis/warp into a worker; measure memory before adding enhancement.</li><li>Calibrate automatic detection and quality gates against the labeled corpus.</li><li>Add native share only after download is robust.</li><li>Add PWA shell caching last, with tests proving sensitive data is excluded.</li></ol>
+      <h3>Definition of done for every change</h3>
+      <ul class="checklist"><li>Unit/integration coverage added for meaningful logic.</li><li>Tested in a narrow mobile viewport and with keyboard.</li><li>No new persistence or network path for image/PDF content.</li><li>Temporary matrices, streams, canvases, workers, and object URLs are disposed.</li><li>Error and cancellation states preserve user control.</li><li>User-facing wording does not imply verification or guaranteed printer behavior.</li><li>Dependency and bundle impact reviewed; offline asset manifest updated intentionally.</li></ul>
+      <h3>Open decisions for product owner</h3>
+      <ul><li>Final product name/domain and whether dealership branding is needed at launch.</li><li>Default page size selection: locale-derived or explicit first-use choice.</li><li>Whether stacked and separate-page layouts are both P0.</li><li>Maximum accepted input bytes/pixels based on target-device testing.</li><li>Whether any analytics are necessary; recommendation is none for initial pilot.</li><li>Session auto-clear timeout and wording for shared-device environments.</li><li>Jurisdictions and business contexts for legal review.</li><li>Support owner and incident process if a privacy/security issue is reported.</li></ul>
+      <h3>Repository deliverables</h3>
+      <ul><li><code>README.md</code> with local setup, HTTPS/mobile testing, build, deployment, privacy architecture, and troubleshooting.</li><li><code>docs/architecture.md</code>, <code>docs/threat-model.md</code>, browser matrix, and release checklist.</li><li>Deterministic fixture generator and redacted test corpus instructions; never commit real credentials.</li><li>Automated tests for PDF geometry, processing transforms, worker cleanup, state machine, and share fallback.</li><li>Production header/CSP configuration and evidence from a deployed-origin smoke test.</li></ul>
+      <div class="callout"><strong>Build principle.</strong> The trustworthy version of this product is the smallest one: static, client-only, inspectable, conservative about image changes, explicit about print limitations, and honest that resizing is not verification.</div>
+      <h3>Authoritative implementation references</h3>
+      <ul><li><a href="https://www.iso.org/standard/31432.html">ISO: ISO/IEC 7810 physical characteristics</a> — nominal ID‑1 size.</li><li><a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia">MDN: MediaDevices.getUserMedia()</a> — HTTPS, permission, and capture constraints.</li><li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Navigator/share">MDN: Navigator.share()</a> — activation and file-share capability behavior.</li><li><a href="https://pdf-lib.js.org/docs/api/classes/pdfdocument">pdf-lib: PDFDocument</a> and <a href="https://pdf-lib.js.org/docs/api/classes/pdfpage">PDFPage</a> — page creation and image placement APIs.</li></ul>
+      <p><small>References were checked when this PRD was prepared on July 14, 2026. Re-check browser compatibility and dependency documentation when implementation begins and before release.</small></p>
+    </section>
+  </div>
+  <footer class="footer">LicenseSizer PRD v1.0 · July 14, 2026 · Self-contained HTML with no external runtime assets. This PRD is not legal advice and does not certify compliance or identity-document authenticity.</footer>
+</main>
+</body>
+</html>
