@@ -2,7 +2,7 @@
 
 import { ChangeEvent, KeyboardEvent, PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { analyzeImage, correctPerspective, DEFAULT_CORNERS, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
-import { composePdf, pdfFilename, PdfOptions } from "../lib/pdf";
+import type { PdfOptions } from "../lib/pdf";
 
 type Side = "front" | "back";
 type Stage = "start" | "capture" | "review" | "ready" | "export" | "complete";
@@ -15,6 +15,13 @@ type CapturedSide = {
 };
 
 const sideLabel = (side: Side) => (side === "front" ? "front" : "back");
+const pdfFilename = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `license-copy-${year}-${month}-${day}.pdf`;
+};
 
 function Progress({ stage }: { stage: Stage }) {
   const steps = ["Capture", "Review", "Export"];
@@ -271,6 +278,7 @@ export default function LicenseSizerApp() {
         correctPerspective(front.source, front.corners, options.quality),
         back ? correctPerspective(back.source, back.corners, options.quality) : Promise.resolve(null),
       ]);
+      const { composePdf } = await import("../lib/pdf");
       const pdf = await composePdf(frontOutput, backOutput, options);
       if (pdfUrl) URL.revokeObjectURL(pdfUrl);
       setPdfBlob(pdf);
