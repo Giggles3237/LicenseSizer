@@ -6,7 +6,7 @@ LicenseSizer is a client-only React application built with vinext/Vite and deplo
 
 1. The user grants rear-camera access or selects an image.
 2. The browser decodes an oriented working copy and calculates coarse quality signals.
-3. Camera captures map the visible ID-1 guide through the video element's `object-fit: cover` geometry into the full-resolution frame. Uploaded photos use a conservative Sobel/connected-edge proposal and rotate portrait-oriented detections into landscape order.
+3. The visible guide is mapped through the video element's `object-fit: cover` geometry only as a search hint. OpenCV.js independently runs grayscale conversion, Gaussian blur, Canny edges, morphological closing, contour extraction, convex four-point approximation, aspect/area/center scoring, and orientation ordering on a 960 px analysis copy.
 4. The user confirms the visible result or adjusts normalized corner coordinates using touch, pointer, or keyboard controls.
 5. A projective transform resamples the selected quadrilateral onto a canonical ID-1 raster.
 6. `pdf-lib` embeds the corrected JPEG at exact PDF-point dimensions.
@@ -26,6 +26,8 @@ Image DPI metadata does not control physical placement. The PDF drawing matrix d
 
 - `app/license-sizer-app.tsx`: workflow, media lifecycle, accessible UI, cleanup
 - `lib/image-processing.ts`: validation, quality signals, rotation, perspective correction
+- `lib/opencv-document.ts`: on-device contour extraction and candidate scoring
+- `lib/camera-geometry.ts`: guide-to-source mapping used only to bias camera analysis
 - `lib/pdf.ts`: page geometry, image placement, marks, metadata, filename
 - `public/sw.js`: static application-shell caching only
 

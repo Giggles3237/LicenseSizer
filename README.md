@@ -8,7 +8,7 @@ The application runs entirely in the browser. License images and generated PDF b
 
 - Rear-camera capture with file-upload fallback
 - Full-screen mobile camera with a high-contrast ID-1 framing guide
-- Automatic card-edge detection and landscape rotation with visible manual fallback
+- On-device OpenCV contour analysis, confidence scoring, landscape rotation, and visible manual fallback
 - Front-only or front-and-back sessions
 - Local blur, lighting, and glare guidance
 - Touch, pointer, and keyboard-accessible four-corner editing

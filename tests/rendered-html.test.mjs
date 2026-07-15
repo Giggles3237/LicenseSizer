@@ -4,6 +4,7 @@ import test from "node:test";
 import { CARD_HEIGHT_POINTS, CARD_WIDTH_POINTS, cardPlacement } from "../lib/pdf.ts";
 import { orientDocumentCorners } from "../lib/image-processing.ts";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry.ts";
+import { detectDocumentWithOpenCv, warpDocumentWithOpenCv } from "../lib/opencv-document.ts";
 
 const root = new URL("../", import.meta.url);
 
@@ -66,6 +67,71 @@ test("maps the visible camera guide into the full-resolution covered video", () 
   assert.ok(corners[1].x > 0.6 && corners[1].x < 0.63);
   assert.ok(corners[0].y > 0.34 && corners[0].y < 0.37);
   assert.ok(corners[2].y > 0.6 && corners[2].y < 0.63);
+});
+
+test("OpenCV analysis finds a four-corner card contour instead of copying the guide", async () => {
+  globalThis.HTMLImageElement ??= class HTMLImageElement {};
+  globalThis.HTMLCanvasElement ??= class HTMLCanvasElement {};
+  globalThis.ImageData ??= class ImageData {
+    constructor(data, width, height) { this.data = data; this.width = width; this.height = height; }
+  };
+  const width = 640;
+  const height = 420;
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    pixels[offset] = 22; pixels[offset + 1] = 30; pixels[offset + 2] = 34; pixels[offset + 3] = 255;
+  }
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const insideCard = x >= 100 + y * 0.08 && x <= 560 - y * 0.04 && y >= 80 && y <= 340;
+      if (!insideCard) continue;
+      const offset = (y * width + x) * 4;
+      pixels[offset] = 230; pixels[offset + 1] = 228; pixels[offset + 2] = 218;
+    }
+  }
+  const canvas = new globalThis.HTMLCanvasElement();
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext = () => ({ getImageData: () => new globalThis.ImageData(pixels, width, height) });
+  const guide = [{ x: 0.08, y: 0.12 }, { x: 0.92, y: 0.12 }, { x: 0.92, y: 0.88 }, { x: 0.08, y: 0.88 }];
+  const result = await detectDocumentWithOpenCv(canvas, guide);
+  assert.equal(result?.found, true);
+  assert.ok((result?.confidence ?? 0) > 0.75);
+  assert.ok(Math.abs((result?.corners[0].x ?? 0) - guide[0].x) > 0.05);
+});
+
+test("OpenCV perspective correction maps exact manual corners to a rectangle", async () => {
+  globalThis.HTMLImageElement ??= class HTMLImageElement {};
+  globalThis.HTMLCanvasElement ??= class HTMLCanvasElement {};
+  globalThis.ImageData ??= class ImageData {
+    constructor(data, width, height) { this.data = data; this.width = width; this.height = height; }
+  };
+  const width = 240;
+  const height = 180;
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let offset = 0; offset < pixels.length; offset += 4) pixels[offset + 3] = 255;
+  const sourceCorners = [{ x: 40, y: 24 }, { x: 208, y: 42 }, { x: 190, y: 154 }, { x: 22, y: 132 }];
+  const colors = [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0]];
+  sourceCorners.forEach((corner, index) => {
+    for (let y = corner.y - 8; y <= corner.y + 8; y += 1) {
+      for (let x = corner.x - 8; x <= corner.x + 8; x += 1) {
+        const offset = (y * width + x) * 4;
+        pixels[offset] = colors[index][0]; pixels[offset + 1] = colors[index][1]; pixels[offset + 2] = colors[index][2];
+      }
+    }
+  });
+  const canvas = new globalThis.HTMLCanvasElement();
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext = () => ({ getImageData: () => new globalThis.ImageData(pixels, width, height) });
+  const normalized = sourceCorners.map((point) => ({ x: point.x / (width - 1), y: point.y / (height - 1) }));
+  const warped = await warpDocumentWithOpenCv(canvas, [normalized[2], normalized[0], normalized[3], normalized[1]], 160, 100);
+  const pixel = (x, y) => Array.from(warped.data.slice((y * warped.width + x) * 4, (y * warped.width + x) * 4 + 3));
+  assert.ok(pixel(2, 2)[0] > 180, "top-left should come from the red source corner");
+  assert.ok(pixel(157, 2)[1] > 180, "top-right should come from the green source corner");
+  assert.ok(pixel(157, 97)[2] > 180, "bottom-right should come from the blue source corner");
+  const bottomLeft = pixel(2, 97);
+  assert.ok(bottomLeft[0] > 180 && bottomLeft[1] > 180, "bottom-left should come from the yellow source corner");
 });
 
 test("removes the disposable starter and avoids sensitive persistence", async () => {
