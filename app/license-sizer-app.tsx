@@ -74,6 +74,7 @@ function EdgeLineHandles({
 }
 
 export default function LicenseSizerApp() {
+  const [interactive, setInteractive] = useState(false);
   const [stage, setStage] = useState<Stage>("start");
   const [activeSide, setActiveSide] = useState<Side>("front");
   const [front, setFront] = useState<CapturedSide | null>(null);
@@ -142,6 +143,11 @@ export default function LicenseSizerApp() {
   }, [back, clearDraft, front, pdfUrl, stopCamera]);
 
   useEffect(() => {
+    const readyTimer = window.setTimeout(() => setInteractive(true), 0);
+    return () => window.clearTimeout(readyTimer);
+  }, []);
+
+  useEffect(() => {
     const onVisibility = () => {
       if (document.hidden) stopCamera();
     };
@@ -151,7 +157,15 @@ export default function LicenseSizerApp() {
 
   useEffect(() => {
     if ("serviceWorker" in navigator && window.isSecureContext) {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      let refreshing = false;
+      const onControllerChange = () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      };
+      navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+      navigator.serviceWorker.register("/sw.js").then((registration) => registration.update()).catch(() => undefined);
+      return () => navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
     }
   }, []);
 
@@ -414,7 +428,7 @@ export default function LicenseSizerApp() {
             <div className="eyebrow">Private • precise • print-ready</div>
             <h1>A true-size license copy, <em>without the scanner.</em></h1>
             <p className="lede">Take or choose a photo. LicenseSizer straightens it and creates a clean PDF at the nominal ID-1 card size.</p>
-            <button className="primary large" onClick={() => beginCapture("front")}>Scan a license <span aria-hidden="true">→</span></button>
+            <button className="primary large" type="button" disabled={!interactive} aria-busy={!interactive} onClick={() => beginCapture("front")}>Scan a license <span aria-hidden="true">→</span></button>
             <p className="microcopy"><span className="lock" aria-hidden="true">●</span> Your photos stay in this browser during processing. Nothing is uploaded.</p>
             <div className="trust-row" aria-label="Product benefits">
               <div><strong>85.60 × 53.98 mm</strong><span>Nominal ID-1 size</span></div>

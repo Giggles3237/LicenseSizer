@@ -181,6 +181,10 @@ test("removes the disposable starter and avoids sensitive persistence", async ()
   assert.doesNotMatch(component, /localStorage|sessionStorage|indexedDB/);
   assert.match(component, /revokeObjectURL/);
   assert.match(component, /getTracks\(\).*track\.stop/);
+  assert.match(component, /registration\.update\(\)/);
+  assert.match(component, /disabled=\{!interactive\}/);
+  assert.match(serviceWorker, /license-sizer-shell-v8/);
   assert.match(serviceWorker, /\["document", "script", "style", "font", "manifest"\]/);
+  assert.match(serviceWorker, /fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
   assert.doesNotMatch(serviceWorker, /request\.destination.*image/);
 });
