@@ -60,16 +60,18 @@ function Progress({ stage }: { stage: Stage }) {
 
 function EdgeLineHandles({
   lines,
+  selectedLine,
   onKey,
   onStart,
 }: {
   lines: [EdgeLine, EdgeLine, EdgeLine, EdgeLine];
+  selectedLine: number;
   onKey: (event: KeyboardEvent<HTMLButtonElement>, lineIndex: number, end: "start" | "end") => void;
   onStart: (event: PointerEvent<HTMLButtonElement>, lineIndex: number, end: "start" | "end") => void;
 }) {
   return lines.flatMap((line, lineIndex) => (["start", "end"] as const).map((end, endIndex) => {
     const point = line[end];
-    return <button key={`${lineIndex}-${end}`} className="crop-handle line-handle" style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }} aria-label={`${LINE_NAMES[lineIndex]} edge, handle ${endIndex + 1}. Use arrow keys to adjust.`} onKeyDown={(event) => onKey(event, lineIndex, end)} onPointerDown={(event) => onStart(event, lineIndex, end)}><span aria-hidden="true" /></button>;
+    return <button key={`${lineIndex}-${end}`} className={`crop-handle line-handle${selectedLine === lineIndex ? " selected" : ""}`} style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }} aria-label={`${LINE_NAMES[lineIndex]} edge, handle ${endIndex + 1} of 2. Drag to tilt this line, or use arrow keys.`} onKeyDown={(event) => onKey(event, lineIndex, end)} onPointerDown={(event) => onStart(event, lineIndex, end)}><span aria-hidden="true" /></button>;
   }));
 }
 
@@ -82,6 +84,7 @@ export default function LicenseSizerApp() {
   const [draft, setDraft] = useState<Blob | null>(null);
   const [draftUrl, setDraftUrl] = useState("");
   const [edgeLines, setEdgeLines] = useState<[EdgeLine, EdgeLine, EdgeLine, EdgeLine]>(() => cornersToEdgeLines(DEFAULT_CORNERS));
+  const [selectedLine, setSelectedLine] = useState(0);
   const [quality, setQuality] = useState<QualityResult | null>(null);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
   const [draftAspect, setDraftAspect] = useState(1.333);
@@ -103,7 +106,11 @@ export default function LicenseSizerApp() {
   const streamRef = useRef<MediaStream | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cropRef = useRef<HTMLDivElement>(null);
-  const dragHandle = useRef<{ line: number; end: "start" | "end" } | null>(null);
+  const dragHandle = useRef<
+    | { kind: "handle"; line: number; end: "start" | "end" }
+    | { kind: "line"; line: number; pointer: Point; initial: EdgeLine }
+    | null
+  >(null);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -278,9 +285,47 @@ export default function LicenseSizerApp() {
   };
 
   const startLineDrag = (event: PointerEvent<HTMLButtonElement>, lineIndex: number, end: "start" | "end") => {
-    dragHandle.current = { line: lineIndex, end };
+    setSelectedLine(lineIndex);
+    dragHandle.current = { kind: "handle", line: lineIndex, end };
     event.currentTarget.setPointerCapture(event.pointerId);
     moveFromPointer(event, lineIndex, end);
+  };
+
+  const startWholeLineDrag = (event: PointerEvent<HTMLButtonElement>, lineIndex: number) => {
+    const bounds = cropRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    setSelectedLine(lineIndex);
+    dragHandle.current = {
+      kind: "line",
+      line: lineIndex,
+      pointer: { x: (event.clientX - bounds.left) / bounds.width, y: (event.clientY - bounds.top) / bounds.height },
+      initial: edgeLines[lineIndex],
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const moveActiveDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const active = dragHandle.current;
+    const bounds = cropRef.current?.getBoundingClientRect();
+    if (!active || !bounds) return;
+    if (active.kind === "handle") {
+      moveFromPointer(event, active.line, active.end);
+      return;
+    }
+    const pointer = { x: (event.clientX - bounds.left) / bounds.width, y: (event.clientY - bounds.top) / bounds.height };
+    const requestedX = pointer.x - active.pointer.x;
+    const requestedY = pointer.y - active.pointer.y;
+    const minX = Math.min(active.initial.start.x, active.initial.end.x);
+    const maxX = Math.max(active.initial.start.x, active.initial.end.x);
+    const minY = Math.min(active.initial.start.y, active.initial.end.y);
+    const maxY = Math.max(active.initial.start.y, active.initial.end.y);
+    const dx = Math.max(-minX, Math.min(1 - maxX, requestedX));
+    const dy = Math.max(-minY, Math.min(1 - maxY, requestedY));
+    setEdgeLines((current) => current.map((line, index) => index === active.line ? {
+      start: { x: active.initial.start.x + dx, y: active.initial.start.y + dy },
+      end: { x: active.initial.end.x + dx, y: active.initial.end.y + dy },
+    } : line) as [EdgeLine, EdgeLine, EdgeLine, EdgeLine]);
   };
 
   const acceptCrop = async () => {
@@ -483,15 +528,15 @@ export default function LicenseSizerApp() {
         {stage === "review" && draftUrl && (
           <div className="panel review-panel">
             <div className="panel-heading"><div><span className="step-kicker">Review {sideLabel(activeSide)}</span><h1>Check the automatic crop</h1></div><button className="text-button" onClick={() => beginCapture(activeSide)}>Retake</button></div>
-            <p>{detection?.found ? "We separated the license from its background and placed a line on each edge." : "The background separation was uncertain. Move either end of each line until the four lines follow the license edges."} The lines extend across the photo; their intersections define the area that will be resized.</p>
+            <p>{detection?.found ? "We separated the license from its background and placed a line on each edge." : "The background separation was uncertain. Adjust each line until it follows a license edge."} Tap a line to select it, drag the line to move it, or drag either of its two end handles to change its angle.</p>
             <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{detection?.found ? `Background-isolated crop • ${Math.round(detection.confidence * 100)}%` : "Manual line adjustment"}</div>
-            <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(65vh * ${draftAspect}))` }} ref={cropRef} onPointerMove={(event) => { const active = dragHandle.current; if (active) moveFromPointer(event, active.line, active.end); }} onPointerUp={() => { dragHandle.current = null; }} onPointerCancel={() => { dragHandle.current = null; }}>
+            <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(65vh * ${draftAspect}))` }} ref={cropRef} onPointerMove={moveActiveDrag} onPointerUp={() => { dragHandle.current = null; }} onPointerCancel={() => { dragHandle.current = null; }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={draftUrl} alt={`Uncropped license ${sideLabel(activeSide)}`} draggable={false} />
-              {cropCorners && <svg className="crop-selection" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon points={cropCorners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")} /></svg>}
-              {cropLines.map((style, index) => <span className="crop-line" style={style} key={index} />)}
-              {lineLabels.map((style, index) => <span className="crop-line-label" style={style} key={LINE_NAMES[index]}>{LINE_NAMES[index]}</span>)}
-              <EdgeLineHandles lines={edgeLines} onKey={onHandleKey} onStart={startLineDrag} />
+              {cropCorners && <svg className="crop-selection" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path className="crop-mask" fillRule="evenodd" d={`M0 0H100V100H0Z M${cropCorners.map((point) => `${point.x * 100} ${point.y * 100}`).join("L")}Z`} /><polygon points={cropCorners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")} /></svg>}
+              {cropLines.map((style, index) => <button type="button" className={`crop-line${selectedLine === index ? " selected" : ""}`} style={style} key={LINE_NAMES[index]} aria-label={`Select and move ${LINE_NAMES[index]} crop line`} aria-pressed={selectedLine === index} onPointerDown={(event) => startWholeLineDrag(event, index)} />)}
+              {lineLabels.map((style, index) => <span className={`crop-line-label${selectedLine === index ? " selected" : ""}`} style={style} key={LINE_NAMES[index]}>{LINE_NAMES[index]}</span>)}
+              <EdgeLineHandles lines={edgeLines} selectedLine={selectedLine} onKey={onHandleKey} onStart={startLineDrag} />
             </div>
             {quality && <div className={`quality ${quality.status}`}><span aria-hidden="true">{quality.status === "pass" ? "✓" : "!"}</span><div><strong>{quality.title}</strong><p>{quality.detail}</p></div></div>}
             <div className="review-actions"><button className="primary" onClick={acceptCrop} disabled={busy}>Use this crop <span aria-hidden="true">→</span></button></div>

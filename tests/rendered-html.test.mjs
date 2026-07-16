@@ -163,6 +163,18 @@ test("independent edge lines extend to the photo bounds and intersect into the c
   assert.notDeepEqual(intersections[0], expected[0], "moving one line end should change its intersections independently");
 });
 
+test("crop lines are selectable and expose two endpoint handles", async () => {
+  const component = await readFile(new URL("../app/license-sizer-app.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(component, /Select and move.*crop line/);
+  assert.match(component, /handle \$\{endIndex \+ 1\} of 2/);
+  assert.match(component, /startWholeLineDrag/);
+  assert.match(component, /aria-pressed=\{selectedLine === index\}/);
+  assert.match(styles, /\.crop-line\.selected::before/);
+  assert.match(styles, /\.line-handle\.selected/);
+  assert.match(styles, /\.crop-selection \.crop-mask/);
+});
+
 test("edge labels retain screen order for portrait crops", () => {
   const portrait = [{ x: 0.35, y: 0.08 }, { x: 0.62, y: 0.12 }, { x: 0.65, y: 0.91 }, { x: 0.31, y: 0.87 }];
   const lines = cornersToEdgeLines(portrait);
