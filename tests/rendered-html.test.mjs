@@ -5,7 +5,7 @@ import { CARD_HEIGHT_POINTS, CARD_WIDTH_POINTS, cardPlacement } from "../lib/pdf
 import { orientDocumentCorners } from "../lib/image-processing.ts";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry.ts";
 import { detectDocumentWithOpenCv, warpDocumentWithOpenCv } from "../lib/opencv-document.ts";
-import { orderDocumentPoints, squareToQuadrilateral } from "../lib/document-geometry.ts";
+import { cornersToEdgeLines, edgeLinesToCorners, extendLineToBounds, orderDocumentPoints, squareToQuadrilateral } from "../lib/document-geometry.ts";
 
 const root = new URL("../", import.meta.url);
 
@@ -150,6 +150,19 @@ test("lightweight perspective fallback maps all four unordered manual corners", 
     assert.ok(Math.abs(actual.x - expected[index].x) < 0.001);
     assert.ok(Math.abs(actual.y - expected[index].y) < 0.001);
   });
+});
+
+test("independent edge lines extend to the photo bounds and intersect into the crop", () => {
+  const expected = [{ x: 0.18, y: 0.2 }, { x: 0.84, y: 0.16 }, { x: 0.88, y: 0.82 }, { x: 0.12, y: 0.86 }];
+  const lines = cornersToEdgeLines(expected);
+  lines[0].start.y += 0.01;
+  const visible = extendLineToBounds(lines[0]);
+  assert.ok(visible.start.x < 0.001 || visible.start.y < 0.001 || visible.end.x > 0.999 || visible.end.y > 0.999);
+  const intersections = edgeLinesToCorners(lines);
+  assert.ok(intersections);
+  assert.equal(intersections.length, 4);
+  assert.ok(intersections.every((point) => point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1));
+  assert.notDeepEqual(intersections[0], expected[0], "moving one line end should change its intersections independently");
 });
 
 test("removes the disposable starter and avoids sensitive persistence", async () => {

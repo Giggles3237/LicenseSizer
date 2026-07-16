@@ -42,15 +42,40 @@ export async function detectDocumentWithOpenCv(
 ): Promise<DetectionResult | null> {
   const cv = await loadOpenCv();
   const src = cv.imread(canvas);
-  const gray = new cv.Mat();
-  const blurred = new cv.Mat();
+  const rgb = new cv.Mat();
+  const lab = new cv.Mat();
   const mask = new cv.Mat();
   const closed = new cv.Mat();
-  const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(7, 7));
+  const kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(11, 11));
 
   try {
-    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
+    // Treat the outer rim as background, then segment the object that differs
+    // from it. This avoids searching every texture and printed edge in the photo.
+    cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
+    cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab);
+    mask.create(canvas.height, canvas.width, cv.CV_8UC1);
+    const borderSamples: number[][] = [[], [], []];
+    const rim = Math.max(4, Math.round(Math.min(canvas.width, canvas.height) * 0.035));
+    for (let y = 0; y < canvas.height; y += 3) {
+      for (let x = 0; x < canvas.width; x += 3) {
+        if (x >= rim && x < canvas.width - rim && y >= rim && y < canvas.height - rim) continue;
+        const offset = (y * canvas.width + x) * 3;
+        borderSamples[0].push(lab.data[offset]);
+        borderSamples[1].push(lab.data[offset + 1]);
+        borderSamples[2].push(lab.data[offset + 2]);
+      }
+    }
+    const median = (values: number[]) => values.sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
+    const background = borderSamples.map(median);
+    for (let pixel = 0; pixel < canvas.width * canvas.height; pixel += 1) {
+      const offset = pixel * 3;
+      const dl = lab.data[offset] - background[0];
+      const da = lab.data[offset + 1] - background[1];
+      const db = lab.data[offset + 2] - background[2];
+      mask.data[pixel] = Math.sqrt(dl * dl * 0.7 + da * da + db * db) > 24 ? 255 : 0;
+    }
+    cv.morphologyEx(mask, closed, cv.MORPH_OPEN, kernel, new cv.Point(-1, -1), 1);
+    cv.morphologyEx(closed, closed, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), 2);
 
     const imageArea = canvas.width * canvas.height;
     const hintCenter = hint
@@ -58,7 +83,7 @@ export async function detectDocumentWithOpenCv(
       : { x: 0.5, y: 0.5 };
     let best: { points: [Point, Point, Point, Point]; score: number; confidence: number; rotated: boolean } | null = null;
 
-    const analyzeContours = (input: any) => {
+    const analyzeForeground = (input: any) => {
       const contours = new cv.MatVector();
       const hierarchy = new cv.Mat();
       try {
@@ -68,11 +93,13 @@ export async function detectDocumentWithOpenCv(
           try {
             const area = Math.abs(cv.contourArea(contour, false));
             if (area < imageArea * 0.055 || area > imageArea * 0.94) continue;
-            const perimeter = cv.arcLength(contour, true);
-            for (const epsilon of [0.015, 0.022, 0.03, 0.04, 0.055]) {
+            const hull = new cv.Mat();
+            cv.convexHull(contour, hull, false, true);
+            const hullPerimeter = cv.arcLength(hull, true);
+            for (const epsilon of [0.018, 0.025, 0.035, 0.05, 0.07]) {
               const approximation = new cv.Mat();
               try {
-                cv.approxPolyDP(contour, approximation, perimeter * epsilon, true);
+                cv.approxPolyDP(hull, approximation, hullPerimeter * epsilon, true);
                 if (approximation.rows !== 4 || !cv.isContourConvex(approximation)) continue;
                 const raw: Point[] = [];
                 for (let pointIndex = 0; pointIndex < 4; pointIndex += 1) {
@@ -100,6 +127,7 @@ export async function detectDocumentWithOpenCv(
                 approximation.delete();
               }
             }
+            hull.delete();
           } finally {
             contour.delete();
           }
@@ -110,17 +138,7 @@ export async function detectDocumentWithOpenCv(
       }
     };
 
-    for (const [low, high] of [[24, 72], [45, 135], [70, 200]]) {
-      cv.Canny(blurred, mask, low, high, 3, false);
-      cv.morphologyEx(mask, closed, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), 2);
-      analyzeContours(closed);
-    }
-    cv.threshold(blurred, mask, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-    cv.morphologyEx(mask, closed, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), 1);
-    analyzeContours(closed);
-    cv.bitwise_not(mask, mask);
-    cv.morphologyEx(mask, closed, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), 1);
-    analyzeContours(closed);
+    analyzeForeground(closed);
 
     if (!best) return null;
     return {
@@ -134,8 +152,8 @@ export async function detectDocumentWithOpenCv(
     kernel.delete();
     closed.delete();
     mask.delete();
-    blurred.delete();
-    gray.delete();
+    lab.delete();
+    rgb.delete();
     src.delete();
   }
 }
@@ -154,9 +172,17 @@ export async function warpDocumentWithOpenCv(
 ) {
   const cv = await loadOpenCv();
   const ordered = orderDocumentPoints(corners);
-  const src = cv.imread(canvas);
+  const fullSource = cv.imread(canvas);
+  const pixelPoints = ordered.map((point) => ({ x: point.x * (canvas.width - 1), y: point.y * (canvas.height - 1) }));
+  const padding = Math.max(3, Math.round(Math.min(canvas.width, canvas.height) * 0.01));
+  const left = Math.max(0, Math.floor(Math.min(...pixelPoints.map((point) => point.x)) - padding));
+  const top = Math.max(0, Math.floor(Math.min(...pixelPoints.map((point) => point.y)) - padding));
+  const right = Math.min(canvas.width, Math.ceil(Math.max(...pixelPoints.map((point) => point.x)) + padding));
+  const bottom = Math.min(canvas.height, Math.ceil(Math.max(...pixelPoints.map((point) => point.y)) + padding));
+  const roi = fullSource.roi(new cv.Rect(left, top, Math.max(1, right - left), Math.max(1, bottom - top)));
+  const src = roi.clone();
   const destination = new cv.Mat();
-  const sourcePoints = cv.matFromArray(4, 1, cv.CV_32FC2, ordered.flatMap((point) => [point.x * (canvas.width - 1), point.y * (canvas.height - 1)]));
+  const sourcePoints = cv.matFromArray(4, 1, cv.CV_32FC2, pixelPoints.flatMap((point) => [point.x - left, point.y - top]));
   const destinationPoints = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, outputWidth - 1, 0, outputWidth - 1, outputHeight - 1, 0, outputHeight - 1]);
   const transform = cv.getPerspectiveTransform(sourcePoints, destinationPoints);
   try {
@@ -168,5 +194,7 @@ export async function warpDocumentWithOpenCv(
     sourcePoints.delete();
     destination.delete();
     src.delete();
+    roi.delete();
+    fullSource.delete();
   }
 }

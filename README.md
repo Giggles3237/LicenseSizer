@@ -8,10 +8,10 @@ The application runs entirely in the browser. License images and generated PDF b
 
 - Rear-camera capture with file-upload fallback
 - Full-screen mobile camera with a high-contrast ID-1 framing guide
-- On-device OpenCV contour analysis, confidence scoring, landscape rotation, and visible manual fallback
+- On-device foreground/background separation, confidence scoring, landscape rotation, and visible manual fallback
 - Front-only or front-and-back sessions
 - Local blur, lighting, and glare guidance
-- Touch, pointer, and keyboard-accessible four-corner editing
+- Touch, pointer, and keyboard-accessible four-line editing with two handles per edge
 - Local projective perspective correction
 - Exact Letter and A4 PDF geometry
 - Stacked, separate-page, and front-only layouts

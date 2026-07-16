@@ -3,6 +3,7 @@
 import { ChangeEvent, KeyboardEvent, PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { analyzeImage, correctPerspective, DEFAULT_CORNERS, detectDocument, DetectionResult, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry";
+import { cornersToEdgeLines, edgeLinesToCorners, extendLineToBounds, type EdgeLine } from "../lib/document-geometry";
 import type { PdfOptions } from "../lib/pdf";
 
 type Side = "front" | "back";
@@ -16,6 +17,7 @@ type CapturedSide = {
 };
 
 const sideLabel = (side: Side) => (side === "front" ? "front" : "back");
+const LINE_NAMES = ["Top", "Right", "Bottom", "Left"] as const;
 const pdfFilename = () => {
   const date = new Date();
   const year = date.getFullYear();
@@ -48,6 +50,21 @@ function PreviewCard({ item, label }: { item: CapturedSide; label: string }) {
   );
 }
 
+function EdgeLineHandles({
+  lines,
+  onKey,
+  onStart,
+}: {
+  lines: [EdgeLine, EdgeLine, EdgeLine, EdgeLine];
+  onKey: (event: KeyboardEvent<HTMLButtonElement>, lineIndex: number, end: "start" | "end") => void;
+  onStart: (event: PointerEvent<HTMLButtonElement>, lineIndex: number, end: "start" | "end") => void;
+}) {
+  return lines.flatMap((line, lineIndex) => (["start", "end"] as const).map((end, endIndex) => {
+    const point = line[end];
+    return <button key={`${lineIndex}-${end}`} className="crop-handle line-handle" style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }} aria-label={`${LINE_NAMES[lineIndex]} edge, end ${endIndex + 1}. Use arrow keys to adjust.`} onKeyDown={(event) => onKey(event, lineIndex, end)} onPointerDown={(event) => onStart(event, lineIndex, end)}><span>{LINE_NAMES[lineIndex][0]}</span></button>;
+  }));
+}
+
 export default function LicenseSizerApp() {
   const [stage, setStage] = useState<Stage>("start");
   const [activeSide, setActiveSide] = useState<Side>("front");
@@ -55,7 +72,7 @@ export default function LicenseSizerApp() {
   const [back, setBack] = useState<CapturedSide | null>(null);
   const [draft, setDraft] = useState<Blob | null>(null);
   const [draftUrl, setDraftUrl] = useState("");
-  const [corners, setCorners] = useState<[Point, Point, Point, Point]>(() => DEFAULT_CORNERS.map((point) => ({ ...point })) as [Point, Point, Point, Point]);
+  const [edgeLines, setEdgeLines] = useState<[EdgeLine, EdgeLine, EdgeLine, EdgeLine]>(() => cornersToEdgeLines(DEFAULT_CORNERS));
   const [quality, setQuality] = useState<QualityResult | null>(null);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
   const [draftAspect, setDraftAspect] = useState(1.333);
@@ -77,7 +94,7 @@ export default function LicenseSizerApp() {
   const streamRef = useRef<MediaStream | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cropRef = useRef<HTMLDivElement>(null);
-  const dragIndex = useRef<number | null>(null);
+  const dragHandle = useRef<{ line: number; end: "start" | "end" } | null>(null);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -92,7 +109,7 @@ export default function LicenseSizerApp() {
     setDraftUrl("");
     setQuality(null);
     setDetection(null);
-    setCorners(DEFAULT_CORNERS.map((point) => ({ ...point })) as [Point, Point, Point, Point]);
+    setEdgeLines(cornersToEdgeLines(DEFAULT_CORNERS));
   }, [draftUrl]);
 
   const startOver = useCallback(() => {
@@ -170,7 +187,7 @@ export default function LicenseSizerApp() {
 
   const prepareDraft = async (blob: Blob, guideCorners?: [Point, Point, Point, Point]) => {
     setBusy(true);
-    setMessage("Analyzing card edges, orientation, focus, and glare…");
+    setMessage("Separating the license from the background, then checking focus and glare…");
     try {
       await validateImage(blob);
       stopCamera();
@@ -182,7 +199,7 @@ export default function LicenseSizerApp() {
       setQuality(qualityResult);
       setDetection(detectionResult);
       setDraftAspect(detectionResult.aspectRatio);
-      setCorners(detectionResult.corners.map((point) => ({ ...point })) as [Point, Point, Point, Point]);
+      setEdgeLines(cornersToEdgeLines(detectionResult.corners));
       setStage("review");
       setMessage("");
     } catch (error) {
@@ -237,29 +254,42 @@ export default function LicenseSizerApp() {
     }
   };
 
-  const updateCorner = (index: number, x: number, y: number) => {
-    setCorners((current) => current.map((point, pointIndex) => pointIndex === index ? { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) } : point) as [Point, Point, Point, Point]);
+  const updateLineEnd = (lineIndex: number, end: "start" | "end", x: number, y: number) => {
+    setEdgeLines((current) => current.map((line, index) => index === lineIndex
+      ? { ...line, [end]: { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) } }
+      : line) as [EdgeLine, EdgeLine, EdgeLine, EdgeLine]);
   };
 
-  const moveFromPointer = (event: PointerEvent<HTMLButtonElement>, index: number) => {
+  const moveFromPointer = (event: PointerEvent<HTMLElement>, lineIndex: number, end: "start" | "end") => {
     const bounds = cropRef.current?.getBoundingClientRect();
     if (!bounds) return;
-    updateCorner(index, (event.clientX - bounds.left) / bounds.width, (event.clientY - bounds.top) / bounds.height);
+    updateLineEnd(lineIndex, end, (event.clientX - bounds.left) / bounds.width, (event.clientY - bounds.top) / bounds.height);
   };
 
-  const onHandleKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+  const onHandleKey = (event: KeyboardEvent<HTMLButtonElement>, lineIndex: number, end: "start" | "end") => {
     const step = event.shiftKey ? 0.025 : 0.006;
-    const point = corners[index];
-    if (event.key === "ArrowLeft") updateCorner(index, point.x - step, point.y);
-    else if (event.key === "ArrowRight") updateCorner(index, point.x + step, point.y);
-    else if (event.key === "ArrowUp") updateCorner(index, point.x, point.y - step);
-    else if (event.key === "ArrowDown") updateCorner(index, point.x, point.y + step);
+    const point = edgeLines[lineIndex][end];
+    if (event.key === "ArrowLeft") updateLineEnd(lineIndex, end, point.x - step, point.y);
+    else if (event.key === "ArrowRight") updateLineEnd(lineIndex, end, point.x + step, point.y);
+    else if (event.key === "ArrowUp") updateLineEnd(lineIndex, end, point.x, point.y - step);
+    else if (event.key === "ArrowDown") updateLineEnd(lineIndex, end, point.x, point.y + step);
     else return;
     event.preventDefault();
   };
 
+  const startLineDrag = (event: PointerEvent<HTMLButtonElement>, lineIndex: number, end: "start" | "end") => {
+    dragHandle.current = { line: lineIndex, end };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    moveFromPointer(event, lineIndex, end);
+  };
+
   const acceptCrop = async () => {
     if (!draft) return;
+    const corners = edgeLinesToCorners(edgeLines);
+    if (!corners) {
+      setMessage("Adjust the line ends so all four sides meet around the license.");
+      return;
+    }
     setBusy(true);
     setMessage("Correcting perspective…");
     try {
@@ -334,11 +364,12 @@ export default function LicenseSizerApp() {
   };
 
   const canShare = Boolean(typeof navigator !== "undefined" && pdfBlob && navigator.share && navigator.canShare?.({ files: [new File([pdfBlob], pdfFilename(), { type: "application/pdf" })] }));
-  const cropLines = corners.map((point, index) => {
-    const next = corners[(index + 1) % corners.length];
-    const dx = (next.x - point.x) * 100;
-    const dy = (next.y - point.y) * 100;
-    return { left: `${point.x * 100}%`, top: `${point.y * 100}%`, width: `${Math.sqrt(dx * dx + dy * dy)}%`, transform: `rotate(${Math.atan2(dy, dx)}rad)` };
+  const cropCorners = edgeLinesToCorners(edgeLines);
+  const cropLines = edgeLines.map((line) => {
+    const visible = extendLineToBounds(line);
+    const dx = (visible.end.x - visible.start.x) * 100;
+    const dy = (visible.end.y - visible.start.y) * 100;
+    return { left: `${visible.start.x * 100}%`, top: `${visible.start.y * 100}%`, width: `${Math.sqrt(dx * dx + dy * dy)}%`, transform: `rotate(${Math.atan2(dy, dx)}rad)` };
   });
 
   return (
@@ -412,15 +443,14 @@ export default function LicenseSizerApp() {
         {stage === "review" && draftUrl && (
           <div className="panel review-panel">
             <div className="panel-heading"><div><span className="step-kicker">Review {sideLabel(activeSide)}</span><h1>Check the automatic crop</h1></div><button className="text-button" onClick={() => beginCapture(activeSide)}>Retake</button></div>
-            <p>{detection?.found ? "We analyzed the image and found a four-corner card contour. Move a handle only if the outline needs a small correction." : "No card contour passed the confidence check. Drag the numbered handles onto the four card corners."}</p>
-            <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{detection?.found ? `Analyzed edge crop${detection.rotated ? " + rotation" : ""} • ${Math.round(detection.confidence * 100)}%` : "Manual check needed"}</div>
-            <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(65vh * ${draftAspect}))` }} ref={cropRef} onPointerMove={(event) => dragIndex.current !== null && moveFromPointer(event as unknown as PointerEvent<HTMLButtonElement>, dragIndex.current)} onPointerUp={() => { dragIndex.current = null; }}>
+            <p>{detection?.found ? "We separated the license from its background and placed a line on each edge." : "The background separation was uncertain. Move either end of each line until the four lines follow the license edges."} The lines extend across the photo; their intersections define the area that will be resized.</p>
+            <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{detection?.found ? `Background-isolated crop${detection.rotated ? " + rotation" : ""} • ${Math.round(detection.confidence * 100)}%` : "Manual line adjustment"}</div>
+            <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(65vh * ${draftAspect}))` }} ref={cropRef} onPointerMove={(event) => { const active = dragHandle.current; if (active) moveFromPointer(event, active.line, active.end); }} onPointerUp={() => { dragHandle.current = null; }} onPointerCancel={() => { dragHandle.current = null; }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={draftUrl} alt={`Uncropped license ${sideLabel(activeSide)}`} draggable={false} />
+              {cropCorners && <svg className="crop-selection" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon points={cropCorners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")} /></svg>}
               {cropLines.map((style, index) => <span className="crop-line" style={style} key={index} />)}
-              {corners.map((point, index) => (
-                <button key={index} className="crop-handle" style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }} aria-label={`Corner ${index + 1}. Use arrow keys to adjust.`} onKeyDown={(event) => onHandleKey(event, index)} onPointerDown={(event) => { dragIndex.current = index; event.currentTarget.setPointerCapture(event.pointerId); moveFromPointer(event, index); }} onPointerMove={(event) => dragIndex.current === index && moveFromPointer(event, index)} onPointerUp={() => { dragIndex.current = null; }}>{index + 1}</button>
-              ))}
+              <EdgeLineHandles lines={edgeLines} onKey={onHandleKey} onStart={startLineDrag} />
             </div>
             {quality && <div className={`quality ${quality.status}`}><span aria-hidden="true">{quality.status === "pass" ? "✓" : "!"}</span><div><strong>{quality.title}</strong><p>{quality.detail}</p></div></div>}
             <div className="review-actions"><button className="secondary" onClick={rotateDraft} disabled={busy}>Rotate 90°</button><button className="primary" onClick={acceptCrop} disabled={busy}>{detection?.found ? "Looks good" : "Use this crop"} <span aria-hidden="true">→</span></button></div>
