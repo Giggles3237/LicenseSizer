@@ -42,7 +42,7 @@ test("uses exact nominal ID-1 PDF geometry", () => {
   assert.ok(Math.abs(placement.firstY - placement.secondY - CARD_HEIGHT_POINTS - 36) < 0.000001);
 });
 
-test("automatically rotates portrait card detections into landscape order", () => {
+test("preserves portrait crop orientation until the user chooses rotate", () => {
   const portrait = [
     { x: 0.3, y: 0.1 },
     { x: 0.55, y: 0.1 },
@@ -52,9 +52,7 @@ test("automatically rotates portrait card detections into landscape order", () =
   const result = orientDocumentCorners(portrait);
   assert.equal(result.rotated, true);
   assert.ok(result.horizontal < result.vertical);
-  const correctedTopEdge = Math.hypot(result.corners[1].x - result.corners[0].x, result.corners[1].y - result.corners[0].y);
-  const correctedSideEdge = Math.hypot(result.corners[3].x - result.corners[0].x, result.corners[3].y - result.corners[0].y);
-  assert.ok(correctedTopEdge > correctedSideEdge);
+  assert.deepEqual(result.corners, portrait);
 });
 
 test("maps the visible camera guide into the full-resolution covered video", () => {
@@ -163,6 +161,13 @@ test("independent edge lines extend to the photo bounds and intersect into the c
   assert.equal(intersections.length, 4);
   assert.ok(intersections.every((point) => point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1));
   assert.notDeepEqual(intersections[0], expected[0], "moving one line end should change its intersections independently");
+});
+
+test("edge labels retain screen order for portrait crops", () => {
+  const portrait = [{ x: 0.35, y: 0.08 }, { x: 0.62, y: 0.12 }, { x: 0.65, y: 0.91 }, { x: 0.31, y: 0.87 }];
+  const lines = cornersToEdgeLines(portrait);
+  assert.ok(lines[0].start.y < lines[2].start.y, "top line must stay above bottom line");
+  assert.ok(lines[1].start.x > lines[3].start.x, "right line must stay right of left line");
 });
 
 test("removes the disposable starter and avoids sensitive persistence", async () => {

@@ -130,7 +130,9 @@ export function orientDocumentCorners(points: [Point, Point, Point, Point]) {
   const vertical = (distance(points[0], points[3]) + distance(points[1], points[2])) / 2;
   const rotated = vertical > horizontal;
   return {
-    corners: (rotated ? [points[3], points[0], points[1], points[2]] : points) as [Point, Point, Point, Point],
+    // Preserve the orientation in which the user photographed the card.
+    // Rotation is an explicit choice after the corrected crop is previewed.
+    corners: points.map((point) => ({ ...point })) as [Point, Point, Point, Point],
     horizontal,
     vertical,
     rotated,
@@ -297,8 +299,17 @@ export async function correctPerspective(
   quality: "standard" | "high" = "high",
 ): Promise<Blob> {
   const sourceCanvas = await sourceToCanvas(source);
-  const outputWidth = quality === "high" ? 1011 : 674;
-  const outputHeight = quality === "high" ? 638 : 425;
+  const ordered = orderDocumentPoints(corners);
+  const sourceDistance = (first: Point, second: Point) => Math.hypot(
+    (first.x - second.x) * sourceCanvas.width,
+    (first.y - second.y) * sourceCanvas.height,
+  );
+  const cropWidth = (sourceDistance(ordered[0], ordered[1]) + sourceDistance(ordered[3], ordered[2])) / 2;
+  const cropHeight = (sourceDistance(ordered[0], ordered[3]) + sourceDistance(ordered[1], ordered[2])) / 2;
+  const landscapeWidth = quality === "high" ? 1011 : 674;
+  const landscapeHeight = quality === "high" ? 638 : 425;
+  const outputWidth = cropWidth >= cropHeight ? landscapeWidth : landscapeHeight;
+  const outputHeight = cropWidth >= cropHeight ? landscapeHeight : landscapeWidth;
   const outputCanvas = document.createElement("canvas");
   outputCanvas.width = outputWidth;
   outputCanvas.height = outputHeight;
@@ -313,7 +324,7 @@ export async function correctPerspective(
     if (!sourceContext) throw new Error("Unable to read the image.");
     const sourceData = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height).data;
     const output = outputContext.createImageData(outputWidth, outputHeight);
-    const transform = squareToQuadrilateral(orderDocumentPoints(corners), sourceCanvas.width, sourceCanvas.height);
+    const transform = squareToQuadrilateral(ordered, sourceCanvas.width, sourceCanvas.height);
     for (let y = 0; y < outputHeight; y += 1) {
       const v = y / Math.max(1, outputHeight - 1);
       for (let x = 0; x < outputWidth; x += 1) {

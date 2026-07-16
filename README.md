@@ -8,7 +8,7 @@ The application runs entirely in the browser. License images and generated PDF b
 
 - Rear-camera capture with file-upload fallback
 - Full-screen mobile camera with a high-contrast ID-1 framing guide
-- On-device foreground/background separation, confidence scoring, landscape rotation, and visible manual fallback
+- On-device foreground/background separation, confidence scoring, orientation-preserving correction, and visible manual fallback
 - Front-only or front-and-back sessions
 - Local blur, lighting, and glare guidance
 - Touch, pointer, and keyboard-accessible four-line editing with two handles per edge

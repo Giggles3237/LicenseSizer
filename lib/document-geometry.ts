@@ -2,18 +2,13 @@ import type { Point } from "./image-processing";
 
 export type EdgeLine = { start: Point; end: Point };
 
-const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
-
 export function orderDocumentPoints(points: Point[]): [Point, Point, Point, Point] {
   if (points.length !== 4) throw new Error("Four card corners are required.");
   const topLeft = points.reduce((best, point) => point.x + point.y < best.x + best.y ? point : best);
   const bottomRight = points.reduce((best, point) => point.x + point.y > best.x + best.y ? point : best);
   const topRight = points.reduce((best, point) => point.x - point.y > best.x - best.y ? point : best);
   const bottomLeft = points.reduce((best, point) => point.x - point.y < best.x - best.y ? point : best);
-  const ordered = [topLeft, topRight, bottomRight, bottomLeft] as [Point, Point, Point, Point];
-  const horizontal = (distance(ordered[0], ordered[1]) + distance(ordered[3], ordered[2])) / 2;
-  const vertical = (distance(ordered[0], ordered[3]) + distance(ordered[1], ordered[2])) / 2;
-  return vertical > horizontal ? [ordered[3], ordered[0], ordered[1], ordered[2]] : ordered;
+  return [topLeft, topRight, bottomRight, bottomLeft];
 }
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value));

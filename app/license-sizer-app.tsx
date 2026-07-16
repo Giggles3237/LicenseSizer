@@ -11,6 +11,7 @@ type Stage = "start" | "capture" | "review" | "ready" | "export" | "complete";
 type CapturedSide = {
   source: Blob;
   sourceUrl: string;
+  sourceAspect: number;
   corrected: Blob;
   correctedUrl: string;
   corners: [Point, Point, Point, Point];
@@ -26,6 +27,23 @@ const pdfFilename = () => {
   return `license-copy-${year}-${month}-${day}.pdf`;
 };
 
+async function rotateImageClockwise(source: Blob): Promise<Blob> {
+  const input = await sourceToCanvas(source);
+  const output = document.createElement("canvas");
+  output.width = input.height;
+  output.height = input.width;
+  const context = output.getContext("2d");
+  if (!context) throw new Error("Unable to rotate the adjusted image.");
+  context.translate(output.width, 0);
+  context.rotate(Math.PI / 2);
+  context.drawImage(input, 0, 0);
+  return new Promise((resolve, reject) => output.toBlob(
+    (blob) => blob ? resolve(blob) : reject(new Error("Unable to rotate the adjusted image.")),
+    "image/jpeg",
+    0.92,
+  ));
+}
+
 function Progress({ stage }: { stage: Stage }) {
   const steps = ["Capture", "Review", "Export"];
   const current = stage === "start" || stage === "capture" ? 0 : stage === "review" || stage === "ready" ? 1 : 2;
@@ -40,16 +58,6 @@ function Progress({ stage }: { stage: Stage }) {
   );
 }
 
-function PreviewCard({ item, label }: { item: CapturedSide; label: string }) {
-  return (
-    <figure className="saved-card">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={item.correctedUrl} alt={`Corrected ${label} of license`} />
-      <figcaption><span className="status-dot" />{label} ready</figcaption>
-    </figure>
-  );
-}
-
 function EdgeLineHandles({
   lines,
   onKey,
@@ -61,7 +69,7 @@ function EdgeLineHandles({
 }) {
   return lines.flatMap((line, lineIndex) => (["start", "end"] as const).map((end, endIndex) => {
     const point = line[end];
-    return <button key={`${lineIndex}-${end}`} className="crop-handle line-handle" style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }} aria-label={`${LINE_NAMES[lineIndex]} edge, end ${endIndex + 1}. Use arrow keys to adjust.`} onKeyDown={(event) => onKey(event, lineIndex, end)} onPointerDown={(event) => onStart(event, lineIndex, end)}><span>{LINE_NAMES[lineIndex][0]}</span></button>;
+    return <button key={`${lineIndex}-${end}`} className="crop-handle line-handle" style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }} aria-label={`${LINE_NAMES[lineIndex]} edge, handle ${endIndex + 1}. Use arrow keys to adjust.`} onKeyDown={(event) => onKey(event, lineIndex, end)} onPointerDown={(event) => onStart(event, lineIndex, end)}><span aria-hidden="true" /></button>;
   }));
 }
 
@@ -232,28 +240,6 @@ export default function LicenseSizerApp() {
     canvas.toBlob((blob) => blob && void prepareDraft(blob, guideCorners), "image/jpeg", 0.94);
   };
 
-  const rotateDraft = async () => {
-    if (!draft) return;
-    setBusy(true);
-    setMessage("Rotating photo…");
-    try {
-      const source = await sourceToCanvas(draft);
-      const canvas = document.createElement("canvas");
-      canvas.width = source.height;
-      canvas.height = source.width;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Unable to rotate the photo.");
-      context.translate(canvas.width, 0);
-      context.rotate(Math.PI / 2);
-      context.drawImage(source, 0, 0);
-      const rotated = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Unable to rotate the photo.")), "image/jpeg", 0.94));
-      await prepareDraft(rotated);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to rotate the photo.");
-      setBusy(false);
-    }
-  };
-
   const updateLineEnd = (lineIndex: number, end: "start" | "end", x: number, y: number) => {
     setEdgeLines((current) => current.map((line, index) => index === lineIndex
       ? { ...line, [end]: { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) } }
@@ -297,6 +283,7 @@ export default function LicenseSizerApp() {
       const item: CapturedSide = {
         source: draft,
         sourceUrl: draftUrl,
+        sourceAspect: draftAspect,
         corrected,
         correctedUrl: URL.createObjectURL(corrected),
         corners: corners.map((point) => ({ ...point })) as [Point, Point, Point, Point],
@@ -320,6 +307,41 @@ export default function LicenseSizerApp() {
     }
   };
 
+  const editCrop = (side: Side) => {
+    const item = side === "front" ? front : back;
+    if (!item) return;
+    if (draftUrl) URL.revokeObjectURL(draftUrl);
+    setActiveSide(side);
+    setDraft(item.source);
+    setDraftUrl(URL.createObjectURL(item.source));
+    setDraftAspect(item.sourceAspect);
+    setEdgeLines(cornersToEdgeLines(item.corners));
+    setDetection(null);
+    setQuality(null);
+    setMessage("");
+    setStage("review");
+  };
+
+  const rotateAdjusted = async (side: Side) => {
+    const item = side === "front" ? front : back;
+    if (!item) return;
+    setBusy(true);
+    setMessage("Rotating the adjusted image…");
+    try {
+      const corrected = await rotateImageClockwise(item.corrected);
+      const correctedUrl = URL.createObjectURL(corrected);
+      URL.revokeObjectURL(item.correctedUrl);
+      const update = (current: CapturedSide | null) => current ? { ...current, corrected, correctedUrl } : current;
+      if (side === "front") setFront(update);
+      else setBack(update);
+      setMessage("");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to rotate the adjusted image.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const beginCapture = (side: Side) => {
     stopCamera();
     clearDraft();
@@ -333,12 +355,8 @@ export default function LicenseSizerApp() {
     setBusy(true);
     setMessage("Creating your true-size PDF…");
     try {
-      const [frontOutput, backOutput] = await Promise.all([
-        correctPerspective(front.source, front.corners, options.quality),
-        back ? correctPerspective(back.source, back.corners, options.quality) : Promise.resolve(null),
-      ]);
       const { composePdf } = await import("../lib/pdf");
-      const pdf = await composePdf(frontOutput, backOutput, options);
+      const pdf = await composePdf(front.corrected, back?.corrected ?? null, options);
       if (pdfUrl) URL.revokeObjectURL(pdfUrl);
       setPdfBlob(pdf);
       setPdfUrl(URL.createObjectURL(pdf));
@@ -371,6 +389,11 @@ export default function LicenseSizerApp() {
     const dy = (visible.end.y - visible.start.y) * 100;
     return { left: `${visible.start.x * 100}%`, top: `${visible.start.y * 100}%`, width: `${Math.sqrt(dx * dx + dy * dy)}%`, transform: `rotate(${Math.atan2(dy, dx)}rad)` };
   });
+  const lineLabels = edgeLines.map((line) => ({
+    left: `${((line.start.x + line.end.x) / 2) * 100}%`,
+    top: `${((line.start.y + line.end.y) / 2) * 100}%`,
+  }));
+  const activeItem = activeSide === "front" ? front : back;
 
   return (
     <main className="app-shell">
@@ -405,7 +428,7 @@ export default function LicenseSizerApp() {
           <div className="panel capture-panel">
             <div className="panel-heading">
               <div><span className="step-kicker">{activeSide === "front" ? "First" : "Optional"}</span><h1>Capture the {sideLabel(activeSide)}</h1></div>
-              {activeSide === "back" && <button className="text-button" onClick={() => setStage("ready")}>Skip back</button>}
+              {activeSide === "back" && <button className="text-button" onClick={() => { setActiveSide("front"); setStage("ready"); }}>Skip back</button>}
             </div>
             <p>Place the license on a contrasting surface. Keep all four corners visible and avoid direct glare.</p>
             {cameraOpen ? (
@@ -436,7 +459,10 @@ export default function LicenseSizerApp() {
               </div>
             )}
             <input ref={fileRef} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" onChange={chooseFile} />
-            <button className="back-link" onClick={() => activeSide === "front" && !front ? setStage("start") : setStage("ready")}>← Go back</button>
+            <button className="back-link" onClick={() => {
+              if (activeSide === "front" && !front) setStage("start");
+              else { setActiveSide("front"); setStage("ready"); }
+            }}>← Go back</button>
           </div>
         )}
 
@@ -444,28 +470,37 @@ export default function LicenseSizerApp() {
           <div className="panel review-panel">
             <div className="panel-heading"><div><span className="step-kicker">Review {sideLabel(activeSide)}</span><h1>Check the automatic crop</h1></div><button className="text-button" onClick={() => beginCapture(activeSide)}>Retake</button></div>
             <p>{detection?.found ? "We separated the license from its background and placed a line on each edge." : "The background separation was uncertain. Move either end of each line until the four lines follow the license edges."} The lines extend across the photo; their intersections define the area that will be resized.</p>
-            <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{detection?.found ? `Background-isolated crop${detection.rotated ? " + rotation" : ""} • ${Math.round(detection.confidence * 100)}%` : "Manual line adjustment"}</div>
+            <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{detection?.found ? `Background-isolated crop • ${Math.round(detection.confidence * 100)}%` : "Manual line adjustment"}</div>
             <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(65vh * ${draftAspect}))` }} ref={cropRef} onPointerMove={(event) => { const active = dragHandle.current; if (active) moveFromPointer(event, active.line, active.end); }} onPointerUp={() => { dragHandle.current = null; }} onPointerCancel={() => { dragHandle.current = null; }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={draftUrl} alt={`Uncropped license ${sideLabel(activeSide)}`} draggable={false} />
               {cropCorners && <svg className="crop-selection" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon points={cropCorners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")} /></svg>}
               {cropLines.map((style, index) => <span className="crop-line" style={style} key={index} />)}
+              {lineLabels.map((style, index) => <span className="crop-line-label" style={style} key={LINE_NAMES[index]}>{LINE_NAMES[index]}</span>)}
               <EdgeLineHandles lines={edgeLines} onKey={onHandleKey} onStart={startLineDrag} />
             </div>
             {quality && <div className={`quality ${quality.status}`}><span aria-hidden="true">{quality.status === "pass" ? "✓" : "!"}</span><div><strong>{quality.title}</strong><p>{quality.detail}</p></div></div>}
-            <div className="review-actions"><button className="secondary" onClick={rotateDraft} disabled={busy}>Rotate 90°</button><button className="primary" onClick={acceptCrop} disabled={busy}>{detection?.found ? "Looks good" : "Use this crop"} <span aria-hidden="true">→</span></button></div>
+            <div className="review-actions"><button className="primary" onClick={acceptCrop} disabled={busy}>Use this crop <span aria-hidden="true">→</span></button></div>
           </div>
         )}
 
-        {stage === "ready" && front && (
+        {stage === "ready" && front && activeItem && (
           <div className="panel ready-panel">
-            <span className="step-kicker">Photos ready</span><h1>Looking good</h1><p>Check that the text is readable and each edge is complete before creating the PDF.</p>
-            <div className="saved-grid"><PreviewCard item={front} label="Front" />{back && <PreviewCard item={back} label="Back" />}</div>
+            <span className="step-kicker">Adjusted {sideLabel(activeSide)}</span><h1>Review the corrected image</h1><p>This is the image that will move forward. Rotate it here, or return to the original photo and adjust the crop lines again.</p>
+            <figure className="adjusted-preview">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={activeItem.correctedUrl} alt={`Adjusted license ${sideLabel(activeSide)}`} />
+              <figcaption><span className="status-dot" />Perspective corrected</figcaption>
+            </figure>
+            <div className="adjusted-tools">
+              <button className="secondary" onClick={() => void rotateAdjusted(activeSide)} disabled={busy}>Rotate 90°</button>
+              <button className="secondary" onClick={() => editCrop(activeSide)} disabled={busy}>← Back to crop</button>
+              <button className="text-button" onClick={() => beginCapture(activeSide)} disabled={busy}>Retake photo</button>
+            </div>
             <div className="ready-actions">
-              {!back && <button className="secondary" onClick={() => beginCapture("back")}>+ Add the back</button>}
+              {activeSide === "front" && !back && <button className="secondary" onClick={() => beginCapture("back")}>+ Add the back</button>}
               <button className="primary" onClick={() => setStage("export")}>Set up PDF <span aria-hidden="true">→</span></button>
             </div>
-            <div className="edit-links"><button onClick={() => beginCapture("front")}>Retake front</button>{back && <button onClick={() => beginCapture("back")}>Retake back</button>}</div>
           </div>
         )}
 
