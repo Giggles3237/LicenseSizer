@@ -4,7 +4,7 @@ import { orderDocumentPoints } from "./document-geometry.ts";
 
 let openCvPromise: Promise<any> | null = null;
 
-async function loadOpenCv() {
+export async function loadOpenCv() {
   if (!openCvPromise) {
     openCvPromise = new Promise((resolve, reject) => {
       const browserWindow = window as Window & { cv?: Promise<any> | any };

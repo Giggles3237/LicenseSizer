@@ -182,6 +182,19 @@ test("edge labels retain screen order for portrait crops", () => {
   assert.ok(lines[1].start.x > lines[3].start.x, "right line must stay right of left line");
 });
 
+test("development viewer exposes the primary and fallback image-analysis stages", async () => {
+  const [component, analysis] = await Promise.all([
+    readFile(new URL("../app/license-sizer-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/development-analysis.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(component, /Image analysis viewer/);
+  assert.match(component, /<select id="analysis-view"/);
+  for (const view of ["Gaussian blur", "Background difference mask", "Cleaned foreground mask", "Canny edges", "Sobel edge strength", "Thresholded + dilated edges", "Contour skin", "Contours + detected crop"]) {
+    assert.ok(analysis.includes(view), `missing ${view} option`);
+  }
+  assert.match(analysis, /Nothing leaves the browser/);
+});
+
 test("removes the disposable starter and avoids sensitive persistence", async () => {
   const [component, serviceWorker, packageJson] = await Promise.all([
     readFile(new URL("app/license-sizer-app.tsx", root), "utf8"),

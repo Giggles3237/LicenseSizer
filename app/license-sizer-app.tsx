@@ -4,6 +4,7 @@ import { ChangeEvent, KeyboardEvent, PointerEvent, useCallback, useEffect, useRe
 import { analyzeImage, correctPerspective, DEFAULT_CORNERS, detectDocument, DetectionResult, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry";
 import { cornersToEdgeLines, edgeLinesToCorners, extendLineToBounds, type EdgeLine } from "../lib/document-geometry";
+import { createDevelopmentAnalysisView, DEVELOPMENT_ANALYSIS_VIEWS, type DevelopmentAnalysisView } from "../lib/development-analysis";
 import type { PdfOptions } from "../lib/pdf";
 
 type Side = "front" | "back";
@@ -94,6 +95,11 @@ export default function LicenseSizerApp() {
   const [message, setMessage] = useState("");
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [pdfUrl, setPdfUrl] = useState("");
+  const [developmentOpen, setDevelopmentOpen] = useState(false);
+  const [analysisView, setAnalysisView] = useState<DevelopmentAnalysisView>("contour-skin");
+  const [analysisUrl, setAnalysisUrl] = useState("");
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
   const [options, setOptions] = useState<PdfOptions & { quality: "standard" | "high" }>({
     pageSize: "letter",
     layout: "stacked",
@@ -106,6 +112,8 @@ export default function LicenseSizerApp() {
   const streamRef = useRef<MediaStream | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cropRef = useRef<HTMLDivElement>(null);
+  const analysisUrlRef = useRef("");
+  const analysisRequestRef = useRef(0);
   const dragHandle = useRef<
     | { kind: "handle"; line: number; end: "start" | "end" }
     | { kind: "line"; line: number; pointer: Point; initial: EdgeLine }
@@ -119,14 +127,25 @@ export default function LicenseSizerApp() {
     setCameraReady(false);
   }, []);
 
+  const releaseAnalysisView = useCallback(() => {
+    analysisRequestRef.current += 1;
+    if (analysisUrlRef.current) URL.revokeObjectURL(analysisUrlRef.current);
+    analysisUrlRef.current = "";
+    setAnalysisUrl("");
+    setAnalysisBusy(false);
+    setAnalysisError("");
+  }, []);
+
   const clearDraft = useCallback(() => {
+    releaseAnalysisView();
+    setDevelopmentOpen(false);
     if (draftUrl) URL.revokeObjectURL(draftUrl);
     setDraft(null);
     setDraftUrl("");
     setQuality(null);
     setDetection(null);
     setEdgeLines(cornersToEdgeLines(DEFAULT_CORNERS));
-  }, [draftUrl]);
+  }, [draftUrl, releaseAnalysisView]);
 
   const startOver = useCallback(() => {
     stopCamera();
@@ -195,7 +214,38 @@ export default function LicenseSizerApp() {
 
   useEffect(() => () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
+    if (analysisUrlRef.current) URL.revokeObjectURL(analysisUrlRef.current);
   }, []);
+
+  const generateDevelopmentView = async (view: DevelopmentAnalysisView) => {
+    if (!draft) return;
+    const request = analysisRequestRef.current + 1;
+    analysisRequestRef.current = request;
+    setAnalysisBusy(true);
+    setAnalysisError("");
+    try {
+      const blob = await createDevelopmentAnalysisView(draft, view, detection);
+      if (analysisRequestRef.current !== request) return;
+      const objectUrl = URL.createObjectURL(blob);
+      if (analysisUrlRef.current) URL.revokeObjectURL(analysisUrlRef.current);
+      analysisUrlRef.current = objectUrl;
+      setAnalysisUrl(objectUrl);
+    } catch (error) {
+      if (analysisRequestRef.current === request) setAnalysisError(error instanceof Error ? error.message : "This analysis view could not be generated.");
+    } finally {
+      if (analysisRequestRef.current === request) setAnalysisBusy(false);
+    }
+  };
+
+  const toggleDevelopmentView = () => {
+    if (developmentOpen) {
+      setDevelopmentOpen(false);
+      releaseAnalysisView();
+      return;
+    }
+    setDevelopmentOpen(true);
+    void generateDevelopmentView(analysisView);
+  };
 
   const openCamera = async () => {
     setMessage("");
@@ -354,6 +404,8 @@ export default function LicenseSizerApp() {
         if (back) { URL.revokeObjectURL(back.sourceUrl); URL.revokeObjectURL(back.correctedUrl); }
         setBack(item);
       }
+      releaseAnalysisView();
+      setDevelopmentOpen(false);
       setDraft(null);
       setDraftUrl("");
       setQuality(null);
@@ -539,6 +591,30 @@ export default function LicenseSizerApp() {
               <EdgeLineHandles lines={edgeLines} selectedLine={selectedLine} onKey={onHandleKey} onStart={startLineDrag} />
             </div>
             {quality && <div className={`quality ${quality.status}`}><span aria-hidden="true">{quality.status === "pass" ? "✓" : "!"}</span><div><strong>{quality.title}</strong><p>{quality.detail}</p></div></div>}
+            <section className="development-analysis" aria-label="Development image analysis">
+              <button type="button" className="development-toggle" aria-expanded={developmentOpen} onClick={toggleDevelopmentView}>
+                <span><b>DEV</b> Image analysis viewer</span><span aria-hidden="true">{developmentOpen ? "−" : "+"}</span>
+              </button>
+              {developmentOpen && (
+                <div className="development-body">
+                  <div className="development-controls">
+                    <label htmlFor="analysis-view">Analyzer view</label>
+                    <select id="analysis-view" value={analysisView} onChange={(event) => { const view = event.target.value as DevelopmentAnalysisView; setAnalysisView(view); void generateDevelopmentView(view); }}>
+                      {DEVELOPMENT_ANALYSIS_VIEWS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                    </select>
+                    <p>{DEVELOPMENT_ANALYSIS_VIEWS.find((option) => option.id === analysisView)?.detail}</p>
+                  </div>
+                  <div className="analysis-canvas" style={{ aspectRatio: draftAspect }} aria-live="polite">
+                    {analysisBusy && <div className="analysis-loading"><span className="spinner" aria-hidden="true" /> Generating {DEVELOPMENT_ANALYSIS_VIEWS.find((option) => option.id === analysisView)?.label.toLowerCase()}…</div>}
+                    {analysisError && <div className="analysis-error">{analysisError}</div>}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {analysisUrl && <img src={analysisUrl} alt={`${DEVELOPMENT_ANALYSIS_VIEWS.find((option) => option.id === analysisView)?.label} development analysis`} />}
+                  </div>
+                  {quality && <dl className="analysis-metrics"><div><dt>Brightness</dt><dd>{quality.brightness.toFixed(1)}</dd></div><div><dt>Glare pixels</dt><dd>{(quality.glare * 100).toFixed(2)}%</dd></div><div><dt>Sharpness</dt><dd>{quality.sharpness.toFixed(1)}</dd></div><div><dt>Detection</dt><dd>{detection ? `${Math.round(detection.confidence * 100)}%` : "—"}</dd></div></dl>}
+                  <p className="development-note">Development diagnostics only. Views are generated on this device from the current photo and are not included in the PDF.</p>
+                </div>
+              )}
+            </section>
             <div className="review-actions"><button className="primary" onClick={acceptCrop} disabled={busy}>Use this crop <span aria-hidden="true">→</span></button></div>
           </div>
         )}
