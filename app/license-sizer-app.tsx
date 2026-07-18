@@ -6,9 +6,10 @@ import { mapGuideToVideoCorners } from "../lib/camera-geometry";
 import { cornersToEdgeLines, edgeLinesToCorners, type EdgeLine } from "../lib/document-geometry";
 import { createDevelopmentAnalysisView, DEVELOPMENT_ANALYSIS_VIEWS, type DevelopmentAnalysisView } from "../lib/development-analysis";
 import type { PdfOptions } from "../lib/pdf";
+import { DEFAULT_DELIVERY_PROFILE, type ActivityEventType, type DealerDeliveryProfile } from "../lib/dealer";
 
 type Side = "front" | "back";
-type Stage = "start" | "capture" | "review" | "ready" | "export" | "complete";
+type Stage = "start" | "capture" | "review" | "ready" | "complete";
 type CapturedSide = {
   source: Blob;
   sourceUrl: string;
@@ -76,7 +77,7 @@ function EdgeLineHandles({
   }));
 }
 
-export default function LicenseSizerApp() {
+export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PROFILE }: { deliveryProfile?: DealerDeliveryProfile }) {
   const [interactive, setInteractive] = useState(false);
   const [stage, setStage] = useState<Stage>("start");
   const [activeSide, setActiveSide] = useState<Side>("front");
@@ -102,13 +103,18 @@ export default function LicenseSizerApp() {
   const [analysisUrl, setAnalysisUrl] = useState("");
   const [analysisBusy, setAnalysisBusy] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
-  const [options, setOptions] = useState<PdfOptions & { quality: "standard" | "high" }>({
-    pageSize: "letter",
-    layout: "stacked",
-    labels: false,
-    cropMarks: false,
-    quality: "high",
+  const [options] = useState<PdfOptions & { quality: "standard" | "high" }>({
+    pageSize: deliveryProfile.pageSize,
+    layout: deliveryProfile.backMode === "front-only" ? "front-only" : deliveryProfile.layout,
+    labels: deliveryProfile.labels,
+    cropMarks: deliveryProfile.cropMarks,
+    quality: deliveryProfile.quality,
   });
+  const [deliveryEmail, setDeliveryEmail] = useState(deliveryProfile.destinationEmail);
+  const [deliveryPhone, setDeliveryPhone] = useState(deliveryProfile.destinationPhone);
+  const [deliverySubject, setDeliverySubject] = useState(deliveryProfile.messageSubject);
+  const [deliveryMessage, setDeliveryMessage] = useState(deliveryProfile.messageBody);
+  const [copiedDestination, setCopiedDestination] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const guideRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -128,6 +134,15 @@ export default function LicenseSizerApp() {
     setCameraOpen(false);
     setCameraReady(false);
   }, []);
+
+  const postActivity = useCallback((eventType: ActivityEventType, deliveryChannel?: string) => {
+    void fetch("/api/activity", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ publicSlug: deliveryProfile.publicSlug, eventType, deliveryChannel }),
+      keepalive: true,
+    }).catch(() => undefined);
+  }, [deliveryProfile.publicSlug]);
 
   const releaseAnalysisView = useCallback(() => {
     analysisRequestRef.current += 1;
@@ -152,6 +167,7 @@ export default function LicenseSizerApp() {
   }, [draftUrl, releaseAnalysisView]);
 
   const startOver = useCallback(() => {
+    postActivity("session_cleared");
     stopCamera();
     clearDraft();
     if (front) {
@@ -170,7 +186,7 @@ export default function LicenseSizerApp() {
     setActiveSide("front");
     setMessage("");
     setStage("start");
-  }, [back, clearDraft, front, pdfUrl, stopCamera]);
+  }, [back, clearDraft, front, pdfUrl, postActivity, stopCamera]);
 
   useEffect(() => {
     const readyTimer = window.setTimeout(() => setInteractive(true), 0);
@@ -418,9 +434,11 @@ export default function LicenseSizerApp() {
       if (activeSide === "front") {
         if (front) { URL.revokeObjectURL(front.sourceUrl); URL.revokeObjectURL(front.correctedUrl); }
         setFront(item);
+        postActivity("front_captured");
       } else {
         if (back) { URL.revokeObjectURL(back.sourceUrl); URL.revokeObjectURL(back.correctedUrl); }
         setBack(item);
+        postActivity("back_captured");
       }
       releaseAnalysisView();
       setDevelopmentOpen(false);
@@ -480,6 +498,7 @@ export default function LicenseSizerApp() {
     setActiveSide(side);
     setMessage("");
     setStage("capture");
+    if (side === "front" && !front) postActivity("session_started");
   };
 
   const generatePdf = async () => {
@@ -493,6 +512,7 @@ export default function LicenseSizerApp() {
       setPdfBlob(pdf);
       setPdfUrl(URL.createObjectURL(pdf));
       setStage("complete");
+      postActivity("pdf_created");
       setMessage("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The PDF could not be created.");
@@ -504,16 +524,35 @@ export default function LicenseSizerApp() {
   const sharePdf = async () => {
     if (!pdfBlob) return;
     const file = new File([pdfBlob], pdfFilename(), { type: "application/pdf" });
-    if (!navigator.share || !navigator.canShare?.({ files: [file] })) return;
+    if (typeof navigator.share !== "function" || typeof navigator.canShare !== "function" || !navigator.canShare({ files: [file] })) return;
     try {
-      await navigator.share({ files: [file], title: "License copy" });
+      const destination = deliveryEmail ? `\n\nRequested destination: ${deliveryEmail}` : "";
+      await navigator.share({ files: [file], title: deliverySubject, text: `${deliveryMessage}${destination}` });
+      postActivity("share_opened", "native-share");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setMessage("Sharing was not completed. Your download is still available below.");
     }
   };
 
-  const canShare = Boolean(typeof navigator !== "undefined" && pdfBlob && navigator.share && navigator.canShare?.({ files: [new File([pdfBlob], pdfFilename(), { type: "application/pdf" })] }));
+  const openEmail = () => {
+    const note = canShare ? deliveryMessage : `${deliveryMessage}\n\nPlease attach the downloaded ${pdfFilename()} file before sending.`;
+    postActivity("email_opened", "email");
+    window.location.href = `mailto:${encodeURIComponent(deliveryEmail)}?subject=${encodeURIComponent(deliverySubject)}&body=${encodeURIComponent(note)}`;
+  };
+
+  const openText = () => {
+    const note = `${deliveryMessage}\n\nAttach ${pdfFilename()} from your downloads before sending.`;
+    postActivity("text_opened", "text");
+    window.location.href = `sms:${deliveryPhone}?body=${encodeURIComponent(note)}`;
+  };
+
+  const copyDestination = async (value: string, label: string) => {
+    try { await navigator.clipboard.writeText(value); setCopiedDestination(`${label} copied`); }
+    catch { setCopiedDestination(`Copy ${value} before opening the share sheet.`); }
+  };
+
+  const canShare = Boolean(typeof navigator !== "undefined" && pdfBlob && typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [new File([pdfBlob], pdfFilename(), { type: "application/pdf" })] }));
   const cropCorners = edgeLinesToCorners(edgeLines);
   const cropLines = edgeLines.map((line) => {
     const dx = (line.end.x - line.start.x) * 100;
@@ -530,7 +569,7 @@ export default function LicenseSizerApp() {
           <span className="brand-mark" aria-hidden="true"><i /></span>
           <span>License<span>Sizer</span></span>
         </a>
-        <div className="privacy-pill"><span /> Processed on this device</div>
+        <div className="header-actions"><a className="dealer-link" href="/dashboard">Dealer console</a><div className="privacy-pill"><span /> Processed on this device</div></div>
       </header>
 
       <section className="workspace" id="top">
@@ -539,9 +578,9 @@ export default function LicenseSizerApp() {
 
         {stage === "start" && (
           <div className="start-screen">
-            <div className="eyebrow">Private • precise • print-ready</div>
+            <div className="eyebrow">{deliveryProfile.publicSlug ? `Secure request from ${deliveryProfile.dealerName}` : "Private • precise • ready to send"}</div>
             <h1>A true-size license copy, <em>without the scanner.</em></h1>
-            <p className="lede">Take or choose a photo. LicenseSizer straightens it and creates a clean PDF at the nominal ID-1 card size.</p>
+            <p className="lede">Take or choose a photo. LicenseSizer straightens it, creates a clean PDF, and helps you send it to {deliveryProfile.publicSlug ? deliveryProfile.dealerName : "the recipient you choose"}.</p>
             <button className="primary large" type="button" disabled={!interactive} aria-busy={!interactive} onClick={() => beginCapture("front")}>Scan a license <span aria-hidden="true">→</span></button>
             <p className="microcopy"><span className="lock" aria-hidden="true">●</span> Your photos stay in this browser during processing. Nothing is uploaded.</p>
             <div className="trust-row" aria-label="Product benefits">
@@ -549,6 +588,7 @@ export default function LicenseSizerApp() {
               <div><strong>Front + back</strong><span>One tidy PDF</span></div>
               <div><strong>No account</strong><span>Clear when finished</span></div>
             </div>
+            {!deliveryProfile.publicSlug && <div className="dealer-cta"><div><span className="step-kicker">For dealerships</span><strong>Give every customer a private, branded delivery link.</strong><p>Set document rules once, invite your team, and track completed handoffs without storing license images.</p></div><a className="secondary" href="/dashboard">Start dealership trial</a></div>}
           </div>
         )}
 
@@ -612,7 +652,7 @@ export default function LicenseSizerApp() {
               <EdgeLineHandles lines={edgeLines} selectedLine={selectedLine} onKey={onHandleKey} onStart={startLineDrag} />
             </div>
             {quality && <div className={`quality ${quality.status}`}><span aria-hidden="true">{quality.status === "pass" ? "✓" : "!"}</span><div><strong>{quality.title}</strong><p>{quality.detail}</p></div></div>}
-            <section className="development-analysis" aria-label="Development image analysis">
+            {process.env.NODE_ENV === "development" && <section className="development-analysis" aria-label="Development image analysis">
               <button type="button" className="development-toggle" aria-expanded={developmentOpen} onClick={toggleDevelopmentView}>
                 <span><b>DEV</b> Image analysis viewer</span><span aria-hidden="true">{developmentOpen ? "−" : "+"}</span>
               </button>
@@ -635,7 +675,7 @@ export default function LicenseSizerApp() {
                   <p className="development-note">Development diagnostics only. Views are generated on this device from the current photo and are not included in the PDF.</p>
                 </div>
               )}
-            </section>
+            </section>}
             <div className="review-actions"><button className="primary" onClick={acceptCrop} disabled={busy}>Use this crop <span aria-hidden="true">→</span></button></div>
           </div>
         )}
@@ -653,30 +693,17 @@ export default function LicenseSizerApp() {
               <button className="secondary" onClick={() => editCrop(activeSide)} disabled={busy}>← Back to crop</button>
               <button className="text-button" onClick={() => beginCapture(activeSide)} disabled={busy}>Retake photo</button>
             </div>
-            <div className="ready-actions">
-              {activeSide === "front" && !back && <button className="secondary" onClick={() => beginCapture("back")}>+ Add the back</button>}
-              <button className="primary" onClick={() => setStage("export")}>Set up PDF <span aria-hidden="true">→</span></button>
-            </div>
-          </div>
-        )}
-
-        {stage === "export" && front && (
-          <div className="panel export-panel">
-            <span className="step-kicker">Final step</span><h1>Set up your PDF</h1><p>The card is placed at its nominal physical size. Print using 100% or Actual size.</p>
-            <fieldset><legend>Paper size</legend><div className="segmented"><label><input type="radio" name="pageSize" checked={options.pageSize === "letter"} onChange={() => setOptions({ ...options, pageSize: "letter" })} /><span>US Letter<small>8.5 × 11 in</small></span></label><label><input type="radio" name="pageSize" checked={options.pageSize === "a4"} onChange={() => setOptions({ ...options, pageSize: "a4" })} /><span>A4<small>210 × 297 mm</small></span></label></div></fieldset>
-            {back && <fieldset><legend>Layout</legend><div className="segmented three"><label><input type="radio" name="layout" checked={options.layout === "stacked"} onChange={() => setOptions({ ...options, layout: "stacked" })} /><span>Stacked<small>One page</small></span></label><label><input type="radio" name="layout" checked={options.layout === "separate-pages"} onChange={() => setOptions({ ...options, layout: "separate-pages" })} /><span>Separate<small>Two pages</small></span></label><label><input type="radio" name="layout" checked={options.layout === "front-only"} onChange={() => setOptions({ ...options, layout: "front-only" })} /><span>Front only<small>Skip back</small></span></label></div></fieldset>}
-            <fieldset><legend>Image detail</legend><div className="segmented"><label><input type="radio" name="quality" checked={options.quality === "standard"} onChange={() => setOptions({ ...options, quality: "standard" })} /><span>Standard<small>Smaller file</small></span></label><label><input type="radio" name="quality" checked={options.quality === "high"} onChange={() => setOptions({ ...options, quality: "high" })} /><span>High<small>Best for print</small></span></label></div></fieldset>
-            <div className="toggle-row"><label><input type="checkbox" checked={options.labels} onChange={(event) => setOptions({ ...options, labels: event.target.checked })} /><span>Label front and back</span></label><label><input type="checkbox" checked={options.cropMarks} onChange={(event) => setOptions({ ...options, cropMarks: event.target.checked })} /><span>Add crop marks</span></label></div>
-            <div className="print-tip"><span aria-hidden="true">100%</span><div><strong>For true-size printing</strong><p>Choose <b>Actual size</b> or <b>100%</b> in the print dialog. Turn off Fit to page.</p></div></div>
-            <div className="review-actions"><button className="secondary" onClick={() => setStage("ready")}>Back</button><button className="primary" onClick={generatePdf} disabled={busy}>Create PDF <span aria-hidden="true">→</span></button></div>
+            <div className="ready-actions">{activeSide === "front" && !back && deliveryProfile.backMode !== "front-only" ? <>{deliveryProfile.backMode === "optional" && <button className="secondary" onClick={generatePdf} disabled={busy}>Continue with front only</button>}<button className="primary" onClick={() => beginCapture("back")}>{deliveryProfile.backMode === "required" ? "Capture required back" : "+ Add the back"} <span aria-hidden="true">→</span></button></> : <button className="primary" onClick={generatePdf} disabled={busy}>Create my PDF <span aria-hidden="true">→</span></button>}</div>
           </div>
         )}
 
         {stage === "complete" && pdfUrl && (
           <div className="panel complete-panel">
-            <div className="success-mark" aria-hidden="true">✓</div><span className="step-kicker">PDF ready</span><h1>Your license copy is ready</h1><p>Save it or share it directly. LicenseSizer does not keep a copy.</p>
+            <div className="success-mark" aria-hidden="true">✓</div><span className="step-kicker">PDF ready</span><h1>Send your license copy</h1><p>The PDF is ready on this device. LicenseSizer does not keep a copy.</p>
             <div className="file-card"><div className="pdf-badge">PDF</div><div><strong>{pdfFilename()}</strong><span>{options.pageSize === "letter" ? "US Letter" : "A4"} • True-size card placement</span></div></div>
-            <div className="complete-actions">{canShare && <button className="primary large" onClick={sharePdf}>Share PDF <span aria-hidden="true">↗</span></button>}<a className={canShare ? "secondary download" : "primary large download"} href={pdfUrl} download={pdfFilename()}>Download PDF <span aria-hidden="true">↓</span></a></div>
+            <div className="delivery-card"><div><span className="step-kicker">Delivery details</span><strong>{deliveryProfile.publicSlug ? deliveryProfile.destinationName : "Choose your recipient"}</strong></div><label>Email<input type="email" value={deliveryEmail} onChange={(event) => setDeliveryEmail(event.target.value)} placeholder="recipient@example.com" /></label><label>Mobile number<input type="tel" value={deliveryPhone} onChange={(event) => setDeliveryPhone(event.target.value)} placeholder="Optional" /></label>{(deliveryEmail || deliveryPhone) && <div className="destination-copy-actions">{deliveryEmail && <button className="text-button" type="button" onClick={() => void copyDestination(deliveryEmail, "Email address")}>Copy email</button>}{deliveryPhone && <button className="text-button" type="button" onClick={() => void copyDestination(deliveryPhone, "Mobile number")}>Copy mobile</button>}{copiedDestination && <span role="status">{copiedDestination}</span>}</div>}<label>Subject<input value={deliverySubject} onChange={(event) => setDeliverySubject(event.target.value)} /></label><label>Message<textarea rows={3} value={deliveryMessage} onChange={(event) => setDeliveryMessage(event.target.value)} /></label></div>
+            <div className="complete-actions">{canShare && <button className="primary large" onClick={sharePdf}>Send PDF <span aria-hidden="true">↗</span></button>}<a className={canShare ? "secondary download" : "primary large download"} href={pdfUrl} download={pdfFilename()} onClick={() => postActivity("pdf_downloaded", "download")}>Download PDF <span aria-hidden="true">↓</span></a></div>
+            {(deliveryEmail || deliveryPhone) && <div className="delivery-fallbacks">{deliveryEmail && <button className="text-button" onClick={openEmail}>Open email draft</button>}{deliveryPhone && <button className="text-button" onClick={openText}>Open text draft</button>}<p>Email and text links cannot attach local files automatically. Use <b>Send PDF</b> when available, or attach the downloaded PDF before sending.</p></div>}
             <div className="print-warning"><strong>Before printing:</strong> select Actual size / 100% and turn off Fit or Scale to page.</div>
             <button className="clear-button" onClick={startOver}>Start over & clear images</button>
           </div>

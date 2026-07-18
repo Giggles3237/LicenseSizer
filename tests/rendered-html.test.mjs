@@ -9,28 +9,18 @@ import { cornersToEdgeLines, edgeLinesToCorners, extendLineToBounds, orderDocume
 
 const root = new URL("../", import.meta.url);
 
-async function render() {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-  return worker.fetch(
-    new Request("http://localhost/", { headers: { accept: "text/html", host: "localhost" } }),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
-}
-
-test("server-renders the LicenseSizer application shell", async () => {
-  const response = await render();
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-  const html = await response.text();
-  assert.match(html, /<title>LicenseSizer/);
-  assert.match(html, /A true-size license copy/);
-  assert.match(html, /Processed on this device/);
-  assert.match(html, /Scan a license/);
-  assert.match(html, /does not verify identity/i);
-  assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
+test("contains the LicenseSizer customer workflow and production metadata", async () => {
+  const [app, layout] = await Promise.all([
+    readFile(new URL("../app/license-sizer-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(layout, /LicenseSizer/);
+  assert.match(app, /A true-size license copy/);
+  assert.match(app, /Processed on this device/);
+  assert.match(app, /Scan a license/);
+  assert.match(app, /does not verify identity/i);
+  assert.match(app, /Send PDF/);
+  assert.doesNotMatch(app, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 
 test("uses exact nominal ID-1 PDF geometry", () => {

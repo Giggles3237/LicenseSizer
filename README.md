@@ -1,38 +1,37 @@
 # LicenseSizer
 
-LicenseSizer is a privacy-first browser application that turns a phone photo into a clean PDF with the license image placed at the nominal ID-1 dimensions of **85.60 × 53.98 mm**.
+LicenseSizer is a privacy-first document capture and delivery product for automotive dealerships. A dealership creates an organization, configures its delivery destination and PDF policy, then shares a branded customer link. The customer photographs a driver's license, confirms the crop, and sends the locally generated PDF through the device's native share sheet.
 
-The application runs entirely in the browser. License images and generated PDF bytes are not uploaded to an application server, stored in browser databases, or added to the service-worker cache.
+License images and PDF bytes stay in volatile browser memory. LicenseSizer stores dealership configuration, subscription state, and minimal workflow events; it does not store license images, PDFs, customer names, filenames, or document content.
 
-## Features
+## Product surfaces
 
-- Rear-camera capture with file-upload fallback
-- Full-screen mobile camera with a high-contrast ID-1 framing guide
-- On-device foreground/background separation, confidence scoring, orientation-preserving correction, and visible manual fallback
-- Front-only or front-and-back sessions
-- Local blur, lighting, and glare guidance
-- Touch, pointer, and keyboard-accessible four-line editing with two handles per edge
-- Local projective perspective correction
-- Exact Letter and A4 PDF geometry
-- Stacked, separate-page, and front-only layouts
-- Standard and high-detail output
-- Optional side labels and crop marks
-- Native file sharing where supported, with download fallback
-- Installable shell with careful static-asset-only offline caching
-- Explicit cleanup of media tracks, object URLs, canvases, and active session references
+- `/` — generic private capture and delivery flow
+- `/d/[slug]` — dealership-configured customer capture link
+- `/dashboard` — Clerk-protected dealer console for reporting, delivery policy, organization membership, and billing
+- `/api/webhooks/stripe` — signed Stripe subscription webhook
 
-LicenseSizer does **not** verify identity, validate a license, decode barcodes, or certify authenticity.
+Dealer admins control whether the back is required, optional, or omitted; Letter/A4 output; stacked/separate-page layout; image detail; labels; crop marks; destination email/phone; and preset message. Customers and dealer users do not see PDF configuration controls.
 
-## Local development
+## Stack
+
+- Next.js 16 deployed to Vercel
+- Clerk Organizations for authentication, invitations, admins, and members
+- Neon Postgres with Drizzle ORM for dealership profiles, activity events, and subscription entitlements
+- Stripe Checkout and Customer Portal for organization subscriptions
+- OpenCV.js and pdf-lib for on-device correction and exact PDF geometry
+
+## Local setup
 
 Requirements: Node.js 22.13 or newer.
 
-```bash
-npm install
-npm run dev
-```
+1. Copy `.env.example` to `.env.local` and add Clerk, Neon, and Stripe test credentials.
+2. In Clerk, enable Organizations and require organization membership for the dealer console.
+3. Create a recurring Stripe Price and set `STRIPE_PRICE_ID`.
+4. Apply the database migration with `npm run db:migrate`.
+5. Start the application with `npm run dev`.
 
-Open `http://localhost:3000`. Camera capture requires a secure context; localhost is treated as secure by modern browsers. Test the deployed HTTPS origin on physical iOS and Android devices before release.
+For local Stripe webhook testing, forward events to `/api/webhooks/stripe` and place the signing secret in `STRIPE_WEBHOOK_SECRET`. Subscribe the production endpoint to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, and `customer.subscription.deleted`.
 
 ## Validation
 
@@ -42,27 +41,12 @@ npm test
 npm run lint
 ```
 
-The tests verify rendered product content, the exact ID-1 point geometry, removal of starter-preview code, and key privacy boundaries.
-
-## Privacy architecture
-
-- Sources remain as in-memory `Blob` objects for the active session.
-- Image analysis, crop correction, and PDF composition execute in the browser.
-- No account, upload endpoint, OCR, telemetry, or persistent document history exists.
-- The service worker caches only same-origin documents, scripts, styles, fonts, and the manifest.
-- Starting over stops the camera, revokes object URLs, and drops session references. JavaScript cannot promise immediate physical memory erasure; the browser controls garbage collection.
-- Files saved or shared by the user are subsequently controlled by the browser, operating system, and chosen destination.
-
-See [docs/architecture.md](docs/architecture.md) and [docs/threat-model.md](docs/threat-model.md) for more detail.
+The suite verifies exact ID-1 geometry, perspective correction, orientation behavior, camera-guide mapping, crop suggestions, privacy boundaries, and core customer delivery content.
 
 ## Deployment
 
-The project is configured as a Cloudflare-compatible Sites application through `.openai/hosting.json`. Production must use HTTPS and should set:
+Import the repository into Vercel and configure every value in `.env.example` for Preview and Production. Use separate Clerk, Neon, and Stripe test resources for Preview. Apply migrations to the production Neon database before promoting the first production deployment. Configure the Stripe production webhook only after the final HTTPS domain is stable.
 
-- `Content-Security-Policy` restricting scripts, workers, frames, and connections to the application origin
-- `Permissions-Policy: camera=(self)`
-- `Referrer-Policy: no-referrer`
-- `X-Content-Type-Options: nosniff`
-- `Strict-Transport-Security` after the production domain is stable
+The native Web Share API can attach the generated PDF to user-selected applications such as Mail or Messages. Browsers do not permit a site to silently select a recipient. `mailto:` and `sms:` fallbacks can preset the destination and message but cannot attach a local PDF, so the interface explains that the user must attach the downloaded file.
 
-Verify camera permission, file sharing, PDF download, offline reload, and cache/storage contents on the final deployed origin.
+LicenseSizer resizes and corrects a document image. It does not verify identity, validate a license, decode a barcode, or certify authenticity.

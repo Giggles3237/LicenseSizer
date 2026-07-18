@@ -1,0 +1,33 @@
+import { auth, clerkClient } from "@clerk/nextjs/server";
+import { getBillingSubscription, getStripe, saveBillingSubscription } from "../../../../../lib/billing";
+
+export const dynamic = "force-dynamic";
+
+export async function POST(request: Request) {
+  const session = await auth();
+  if (!session.userId || !session.orgId) return Response.json({ error: "Organization sign-in required." }, { status: 401 });
+  if (session.orgRole !== "org:admin") return Response.json({ error: "Organization admin access is required." }, { status: 403 });
+  const priceId = process.env.STRIPE_PRICE_ID;
+  if (!priceId) return Response.json({ error: "Stripe pricing is not configured." }, { status: 503 });
+  const stripe = getStripe();
+  const existing = await getBillingSubscription(session.orgId);
+  const organization = await (await clerkClient()).organizations.getOrganization({ organizationId: session.orgId });
+  const customerId = existing?.stripeCustomerId || (await stripe.customers.create({ name: organization.name, metadata: { organizationId: session.orgId } })).id;
+  if (!existing) await saveBillingSubscription({ organizationId: session.orgId, stripeCustomerId: customerId });
+  const origin = new URL(request.url).origin;
+  const trialDays = Math.max(0, Math.min(90, Number(process.env.STRIPE_TRIAL_DAYS || 14)));
+  const checkout = await stripe.checkout.sessions.create({
+    mode: "subscription",
+    customer: customerId,
+    line_items: [{ price: priceId, quantity: 1 }],
+    allow_promotion_codes: true,
+    billing_address_collection: "required",
+    automatic_tax: { enabled: process.env.STRIPE_AUTOMATIC_TAX !== "false" },
+    customer_update: { address: "auto", name: "auto" },
+    subscription_data: { metadata: { organizationId: session.orgId }, ...(trialDays ? { trial_period_days: trialDays } : {}) },
+    metadata: { organizationId: session.orgId },
+    success_url: `${origin}/dashboard?checkout=success`,
+    cancel_url: `${origin}/dashboard?checkout=cancelled`,
+  });
+  return Response.json({ url: checkout.url });
+}

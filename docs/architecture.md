@@ -1,34 +1,35 @@
 # Architecture
 
-LicenseSizer is a client-only React application built with vinext/Vite and deployed as a Cloudflare-compatible worker plus static assets. There is no application data API or persistent database.
+LicenseSizer is a Next.js application deployed to Vercel. It combines a public, browser-only license capture workflow with a server-side dealership control plane.
 
-## Runtime flow
+## Customer data flow
 
-1. The user grants rear-camera access or selects an image.
-2. The browser decodes an oriented working copy and calculates coarse quality signals.
-3. The visible guide is mapped through the video element's `object-fit: cover` geometry only as a search hint. OpenCV.js independently runs grayscale conversion, Gaussian blur, Canny edges, morphological closing, contour extraction, convex four-point approximation, aspect/area/center scoring, and orientation ordering on a 960 px analysis copy.
-4. The user confirms the visible result or adjusts normalized corner coordinates using touch, pointer, or keyboard controls.
-5. A projective transform resamples the selected quadrilateral onto a canonical ID-1 raster.
-6. `pdf-lib` embeds the corrected JPEG at exact PDF-point dimensions.
-7. The resulting Blob is shared through the Web Share API or downloaded through a temporary object URL.
-8. Starting over stops media tracks, revokes object URLs, and drops references.
+1. A customer opens `/d/[slug]`; the server returns only the dealership's delivery and PDF policy.
+2. The browser captures or selects an image and runs validation, edge detection, quality analysis, crop correction, and PDF composition locally.
+3. The customer reviews the corrected front/back images.
+4. The browser generates the PDF at the dealer-administered geometry and quality settings.
+5. The customer invokes the native share sheet, downloads the PDF, or opens an email/text fallback.
+6. The browser drops image/PDF references when the customer clears the session.
 
-## Important constants
+No image or PDF endpoint exists. The server receives only allowlisted activity names such as `session_started`, `pdf_created`, or `share_opened`.
+
+## Control plane
+
+- Clerk Organizations owns users, invitations, organization membership, and the `org:admin`/`org:member` roles.
+- Neon Postgres stores dealer delivery profiles, document policy, activity events, and Stripe entitlement status.
+- Stripe Checkout collects payment details. Signed webhooks update the organization subscription record. Stripe Customer Portal handles invoices, payment methods, and cancellations.
+- Dealer API routes require Clerk authentication and enforce the active organization and admin role server-side.
+- Public dealership links become available only to active or trialing subscriptions when Stripe is configured.
+
+## Privacy boundary
+
+Activity records contain organization ID, optional signed-in Clerk user ID, customer/user actor type, event type, optional delivery channel, and timestamp. They contain no customer identity, source address, license data, image, PDF, filename, message body, destination, or crop geometry.
+
+## Exact output
 
 - ID-1 width: `85.60 × 72 / 25.4 = 242.645669... pt`
 - ID-1 height: `53.98 × 72 / 25.4 = 153.014173... pt`
 - Standard raster: 674 × 425 px
 - High-detail raster: 1011 × 638 px
 
-Image DPI metadata does not control physical placement. The PDF drawing matrix does.
-
-## Boundaries
-
-- `app/license-sizer-app.tsx`: workflow, media lifecycle, accessible UI, cleanup
-- `lib/image-processing.ts`: validation, quality signals, rotation, perspective correction
-- `lib/opencv-document.ts`: on-device contour extraction and candidate scoring
-- `lib/camera-geometry.ts`: guide-to-source mapping used only to bias camera analysis
-- `lib/pdf.ts`: page geometry, image placement, marks, metadata, filename
-- `public/sw.js`: static application-shell caching only
-
-Automatic detection is always shown for user confirmation; low-confidence results fall back to the safe default handles instead of silently cropping.
+PDF drawing geometry, not image DPI metadata, controls physical placement.
