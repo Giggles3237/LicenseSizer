@@ -43,6 +43,31 @@ function polygonArea(points: Point[]) {
   }, 0) / 2);
 }
 
+const radiansBetween = (first: number, second: number) => {
+  const difference = Math.abs(first - second) % Math.PI;
+  return Math.min(difference, Math.PI - difference);
+};
+
+const segmentAngle = (first: Point, second: Point) => Math.atan2(second.y - first.y, second.x - first.x);
+
+const averageParallelAngle = (first: number, second: number) => {
+  const angle = Math.atan2(Math.sin(first * 2) + Math.sin(second * 2), Math.cos(first * 2) + Math.cos(second * 2)) / 2;
+  return angle < 0 ? angle + Math.PI : angle;
+};
+
+function lineIntersection(first: [Point, Point], second: [Point, Point]): Point | null {
+  const [a, b] = first;
+  const [c, d] = second;
+  const denominator = (a.x - b.x) * (c.y - d.y) - (a.y - b.y) * (c.x - d.x);
+  if (Math.abs(denominator) < 0.0001) return null;
+  const firstCross = a.x * b.y - a.y * b.x;
+  const secondCross = c.x * d.y - c.y * d.x;
+  return {
+    x: (firstCross * (c.x - d.x) - (a.x - b.x) * secondCross) / denominator,
+    y: (firstCross * (c.y - d.y) - (a.y - b.y) * secondCross) / denominator,
+  };
+}
+
 export async function detectDocumentWithOpenCv(
   canvas: HTMLCanvasElement,
   hint?: [Point, Point, Point, Point],
@@ -106,7 +131,59 @@ export async function detectDocumentCandidatesWithOpenCv(
     const hintCenter = hint
       ? { x: hint.reduce((sum, point) => sum + point.x, 0) / 4, y: hint.reduce((sum, point) => sum + point.y, 0) / 4 }
       : { x: 0.5, y: 0.5 };
-    const analyzeForeground = (input: any) => {
+    type BestQuadrilateral = { points: [Point, Point, Point, Point]; score: number; confidence: number; rotated: boolean };
+    const edgeSupport = (points: [Point, Point, Point, Point], evidence: any) => {
+      let supported = 0;
+      let samples = 0;
+      const radius = Math.max(2, Math.round(Math.min(canvas.width, canvas.height) * 0.004));
+      for (let edge = 0; edge < 4; edge += 1) {
+        const start = points[edge];
+        const end = points[(edge + 1) % 4];
+        const sampleCount = Math.max(24, Math.round(distance(start, end) * Math.max(canvas.width, canvas.height) / 12));
+        for (let sample = 0; sample <= sampleCount; sample += 1) {
+          const progress = sample / sampleCount;
+          const x = Math.round((start.x + (end.x - start.x) * progress) * (canvas.width - 1));
+          const y = Math.round((start.y + (end.y - start.y) * progress) * (canvas.height - 1));
+          let hit = false;
+          for (let offsetY = -radius; offsetY <= radius && !hit; offsetY += 1) {
+            for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
+              const sampleX = x + offsetX;
+              const sampleY = y + offsetY;
+              if (sampleX < 0 || sampleY < 0 || sampleX >= canvas.width || sampleY >= canvas.height) continue;
+              if (evidence.data[sampleY * canvas.width + sampleX] > 0) { hit = true; break; }
+            }
+          }
+          supported += Number(hit);
+          samples += 1;
+        }
+      }
+      return supported / Math.max(1, samples);
+    };
+    const scoreQuadrilateral = (points: [Point, Point, Point, Point], evidence: any): BestQuadrilateral | null => {
+      const top = distance(points[0], points[1]);
+      const bottom = distance(points[3], points[2]);
+      const left = distance(points[0], points[3]);
+      const right = distance(points[1], points[2]);
+      const rawRatio = ((top + bottom) / 2) / Math.max(0.001, (left + right) / 2);
+      const measuredRatio = Math.max(rawRatio, 1 / Math.max(0.001, rawRatio));
+      const ratioScore = Math.max(0, 1 - Math.abs(measuredRatio - 1.58577) / 0.72);
+      const normalizedArea = polygonArea(points);
+      if (normalizedArea < 0.055 || normalizedArea > 0.94) return null;
+      const areaScore = Math.min(1, normalizedArea / 0.34);
+      const center = { x: points.reduce((sum, point) => sum + point.x, 0) / 4, y: points.reduce((sum, point) => sum + point.y, 0) / 4 };
+      const centerScore = Math.max(0, 1 - Math.hypot(center.x - hintCenter.x, center.y - hintCenter.y) / 0.55);
+      const topBottomAngle = radiansBetween(segmentAngle(points[0], points[1]), segmentAngle(points[3], points[2]));
+      const leftRightAngle = radiansBetween(segmentAngle(points[0], points[3]), segmentAngle(points[1], points[2]));
+      const parallelScore = (
+        Math.max(0, 1 - topBottomAngle / (Math.PI / 7)) +
+        Math.max(0, 1 - leftRightAngle / (Math.PI / 7))
+      ) / 2;
+      const lengthSymmetry = Math.max(0, 1 - Math.abs(top - bottom) - Math.abs(left - right));
+      const boundaryScore = edgeSupport(points, evidence);
+      const confidence = areaScore * 0.2 + ratioScore * 0.22 + centerScore * 0.12 + parallelScore * 0.18 + lengthSymmetry * 0.08 + boundaryScore * 0.2;
+      return { points, score: confidence * normalizedArea, confidence, rotated: verticalCard(points) };
+    };
+    const analyzeForeground = (input: any, evidence: any) => {
       let best: { points: [Point, Point, Point, Point]; score: number; confidence: number; rotated: boolean } | null = null;
       const contours = new cv.MatVector();
       const hierarchy = new cv.Mat();
@@ -133,21 +210,8 @@ export async function detectDocumentCandidatesWithOpenCv(
                   });
                 }
                 const ordered = orderDocumentPoints(raw);
-                const top = distance(ordered[0], ordered[1]);
-                const bottom = distance(ordered[3], ordered[2]);
-                const left = distance(ordered[0], ordered[3]);
-                const right = distance(ordered[1], ordered[2]);
-                const rawRatio = ((top + bottom) / 2) / Math.max(0.001, (left + right) / 2);
-                const measuredRatio = Math.max(rawRatio, 1 / Math.max(0.001, rawRatio));
-                const ratioScore = Math.max(0, 1 - Math.abs(measuredRatio - 1.58577) / 0.9);
-                const normalizedArea = polygonArea(ordered);
-                const areaScore = Math.min(1, normalizedArea / 0.32);
-                const center = { x: ordered.reduce((sum, point) => sum + point.x, 0) / 4, y: ordered.reduce((sum, point) => sum + point.y, 0) / 4 };
-                const centerScore = Math.max(0, 1 - Math.hypot(center.x - hintCenter.x, center.y - hintCenter.y) / 0.55);
-                const parallelScore = Math.max(0, 1 - Math.abs(top - bottom) - Math.abs(left - right));
-                const confidence = areaScore * 0.35 + ratioScore * 0.32 + centerScore * 0.23 + parallelScore * 0.1;
-                const score = confidence * area;
-                if (!best || score > best.score) best = { points: ordered, score, confidence, rotated: verticalCard(raw) };
+                const scored = scoreQuadrilateral(ordered, evidence);
+                if (scored && (!best || scored.score > best.score)) best = scored;
               } finally {
                 approximation.delete();
               }
@@ -164,6 +228,67 @@ export async function detectDocumentCandidatesWithOpenCv(
       return best;
     };
 
+    const analyzeLinePairs = (evidence: any): BestQuadrilateral | null => {
+      const lines = new cv.Mat();
+      try {
+        const minimumDimension = Math.min(canvas.width, canvas.height);
+        cv.HoughLinesP(evidence, lines, 1, Math.PI / 180, Math.max(28, Math.round(minimumDimension * 0.1)), Math.round(minimumDimension * 0.16), Math.round(minimumDimension * 0.055));
+        const segments: Array<{ line: [Point, Point]; length: number; angle: number; midpoint: Point }> = [];
+        const lineCount = Math.floor(lines.data32S.length / 4);
+        for (let row = 0; row < lineCount; row += 1) {
+          const offset = row * 4;
+          const first = { x: lines.data32S[offset] / canvas.width, y: lines.data32S[offset + 1] / canvas.height };
+          const second = { x: lines.data32S[offset + 2] / canvas.width, y: lines.data32S[offset + 3] / canvas.height };
+          segments.push({
+            line: [first, second],
+            length: distance(first, second),
+            angle: ((segmentAngle(first, second) % Math.PI) + Math.PI) % Math.PI,
+            midpoint: { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 },
+          });
+        }
+        const strongest = segments.sort((first, second) => second.length - first.length).slice(0, 22);
+        const pairs: Array<{ first: typeof strongest[number]; second: typeof strongest[number]; angle: number; score: number }> = [];
+        for (let firstIndex = 0; firstIndex < strongest.length; firstIndex += 1) {
+          for (let secondIndex = firstIndex + 1; secondIndex < strongest.length; secondIndex += 1) {
+            const first = strongest[firstIndex];
+            const second = strongest[secondIndex];
+            const angleDifference = radiansBetween(first.angle, second.angle);
+            if (angleDifference > Math.PI / 10) continue;
+            const averageAngle = averageParallelAngle(first.angle, second.angle);
+            const midpointDelta = { x: second.midpoint.x - first.midpoint.x, y: second.midpoint.y - first.midpoint.y };
+            const separation = Math.abs(midpointDelta.x * -Math.sin(averageAngle) + midpointDelta.y * Math.cos(averageAngle));
+            if (separation < 0.12) continue;
+            pairs.push({ first, second, angle: averageAngle, score: separation * (first.length + second.length) * (1 - angleDifference / (Math.PI / 10)) });
+          }
+        }
+        // Retain enough pairs to preserve both long horizontal edges and the
+        // usually shorter vertical edges of a landscape ID card.
+        const strongestPairs = pairs.sort((first, second) => second.score - first.score).slice(0, 80);
+        let best: BestQuadrilateral | null = null;
+        for (let firstIndex = 0; firstIndex < strongestPairs.length; firstIndex += 1) {
+          for (let secondIndex = firstIndex + 1; secondIndex < strongestPairs.length; secondIndex += 1) {
+            const firstPair = strongestPairs[firstIndex];
+            const secondPair = strongestPairs[secondIndex];
+            const orthogonalError = Math.abs(radiansBetween(firstPair.angle, secondPair.angle) - Math.PI / 2);
+            if (orthogonalError > Math.PI / 7) continue;
+            const intersections = [
+              lineIntersection(firstPair.first.line, secondPair.first.line),
+              lineIntersection(firstPair.first.line, secondPair.second.line),
+              lineIntersection(firstPair.second.line, secondPair.second.line),
+              lineIntersection(firstPair.second.line, secondPair.first.line),
+            ];
+            if (intersections.some((point) => !point || point.x < -0.08 || point.x > 1.08 || point.y < -0.08 || point.y > 1.08)) continue;
+            const ordered = orderDocumentPoints(intersections as Point[]);
+            const scored = scoreQuadrilateral(ordered, evidence);
+            if (scored && (!best || scored.score > best.score)) best = scored;
+          }
+        }
+        return best;
+      } finally {
+        lines.delete();
+      }
+    };
+
     const toDetection = (best: { points: [Point, Point, Point, Point]; confidence: number; rotated: boolean } | null): DetectionResult | null => best ? ({
       corners: best.points,
       confidence: best.confidence,
@@ -171,10 +296,12 @@ export async function detectDocumentCandidatesWithOpenCv(
       rotated: best.rotated,
       aspectRatio: canvas.width / canvas.height,
     }) : null;
-    const cannyDetection = toDetection(analyzeForeground(cannyClosed));
-    const backgroundDetection = toDetection(analyzeForeground(closed));
+    const contourCanny = analyzeForeground(cannyClosed, canny);
+    const pairedLines = analyzeLinePairs(canny);
+    const cannyDetection = toDetection(pairedLines && (!contourCanny || pairedLines.score > contourCanny.score) ? pairedLines : contourCanny);
+    const backgroundDetection = toDetection(analyzeForeground(closed, canny));
     const candidates: OpenCvCropCandidate[] = [];
-    if (cannyDetection) candidates.push({ id: "canny", label: "Canny edges", detail: "Follows the strongest connected edges around the main object.", detection: cannyDetection });
+    if (cannyDetection) candidates.push({ id: "canny", label: "Canny edges", detail: "Follows supported outer edges and reinforces long opposite line pairs, allowing for perspective.", detection: cannyDetection });
     if (backgroundDetection) candidates.push({ id: "background", label: "Background contrast", detail: "Separates the main object from the color around the photo rim.", detection: backgroundDetection });
     return candidates;
   } finally {

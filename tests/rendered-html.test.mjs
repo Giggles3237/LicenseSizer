@@ -102,6 +102,50 @@ test("OpenCV analysis finds a four-corner card contour instead of copying the gu
   assert.equal(candidates[0]?.id, "canny", "Canny must be the first automatic crop model");
 });
 
+test("Canny reconstructs a perspective crop from separated opposite edge pairs", async () => {
+  globalThis.window ??= { cv: await Promise.resolve((await import("@techstark/opencv-js")).default) };
+  globalThis.HTMLImageElement ??= class HTMLImageElement {};
+  globalThis.HTMLCanvasElement ??= class HTMLCanvasElement {};
+  globalThis.ImageData ??= class ImageData {
+    constructor(data, width, height) { this.data = data; this.width = width; this.height = height; }
+  };
+  const width = 640;
+  const height = 420;
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let offset = 0; offset < pixels.length; offset += 4) pixels[offset + 3] = 255;
+  const drawSegment = (start, end) => {
+    const steps = Math.ceil(Math.hypot(end.x - start.x, end.y - start.y));
+    for (let step = 0; step <= steps; step += 1) {
+      const x = Math.round(start.x + (end.x - start.x) * step / steps);
+      const y = Math.round(start.y + (end.y - start.y) * step / steps);
+      for (let offsetY = -2; offsetY <= 2; offsetY += 1) {
+        for (let offsetX = -2; offsetX <= 2; offsetX += 1) {
+          const pixel = ((y + offsetY) * width + x + offsetX) * 4;
+          pixels[pixel] = 245; pixels[pixel + 1] = 245; pixels[pixel + 2] = 245;
+        }
+      }
+    }
+  };
+  const corners = [{ x: 92, y: 78 }, { x: 552, y: 96 }, { x: 520, y: 350 }, { x: 108, y: 334 }];
+  for (let edge = 0; edge < 4; edge += 1) {
+    const start = corners[edge];
+    const end = corners[(edge + 1) % 4];
+    const firstEnd = { x: start.x + (end.x - start.x) * 0.44, y: start.y + (end.y - start.y) * 0.44 };
+    const secondStart = { x: start.x + (end.x - start.x) * 0.56, y: start.y + (end.y - start.y) * 0.56 };
+    drawSegment(start, firstEnd);
+    drawSegment(secondStart, end);
+  }
+  const canvas = new globalThis.HTMLCanvasElement();
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext = () => ({ getImageData: () => new globalThis.ImageData(pixels, width, height) });
+  const candidates = await detectDocumentCandidatesWithOpenCv(canvas);
+  const canny = candidates.find((candidate) => candidate.id === "canny")?.detection;
+  assert.equal(canny?.found, true);
+  assert.ok(Math.abs((canny?.corners[0].x ?? 0) - corners[0].x / width) < 0.06);
+  assert.ok(Math.abs((canny?.corners[2].y ?? 0) - corners[2].y / height) < 0.06);
+});
+
 test("OpenCV perspective correction maps exact manual corners to a rectangle", async () => {
   globalThis.HTMLImageElement ??= class HTMLImageElement {};
   globalThis.HTMLCanvasElement ??= class HTMLCanvasElement {};
