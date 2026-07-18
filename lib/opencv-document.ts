@@ -160,10 +160,14 @@ export async function detectDocumentCandidatesWithOpenCv(
       return supported / Math.max(1, samples);
     };
     const scoreQuadrilateral = (points: [Point, Point, Point, Point], evidence: any): BestQuadrilateral | null => {
-      const top = distance(points[0], points[1]);
-      const bottom = distance(points[3], points[2]);
-      const left = distance(points[0], points[3]);
-      const right = distance(points[1], points[2]);
+      const pixelDistance = (first: Point, second: Point) => Math.hypot(
+        (first.x - second.x) * canvas.width,
+        (first.y - second.y) * canvas.height,
+      );
+      const top = pixelDistance(points[0], points[1]);
+      const bottom = pixelDistance(points[3], points[2]);
+      const left = pixelDistance(points[0], points[3]);
+      const right = pixelDistance(points[1], points[2]);
       const rawRatio = ((top + bottom) / 2) / Math.max(0.001, (left + right) / 2);
       const measuredRatio = Math.max(rawRatio, 1 / Math.max(0.001, rawRatio));
       const ratioScore = Math.max(0, 1 - Math.abs(measuredRatio - 1.58577) / 0.72);
@@ -178,10 +182,13 @@ export async function detectDocumentCandidatesWithOpenCv(
         Math.max(0, 1 - topBottomAngle / (Math.PI / 7)) +
         Math.max(0, 1 - leftRightAngle / (Math.PI / 7))
       ) / 2;
-      const lengthSymmetry = Math.max(0, 1 - Math.abs(top - bottom) - Math.abs(left - right));
+      const lengthSymmetry = Math.max(0, 1 - Math.abs(top - bottom) / Math.max(top, bottom) - Math.abs(left - right) / Math.max(left, right));
       const boundaryScore = edgeSupport(points, evidence);
-      const confidence = areaScore * 0.2 + ratioScore * 0.22 + centerScore * 0.12 + parallelScore * 0.18 + lengthSymmetry * 0.08 + boundaryScore * 0.2;
-      return { points, score: confidence * normalizedArea, confidence, rotated: verticalCard(points) };
+      const frameClearance = Math.min(...points.flatMap((point) => [point.x, point.y, 1 - point.x, 1 - point.y]));
+      const frameScore = Math.max(0, Math.min(1, frameClearance / 0.025));
+      const confidence = areaScore * 0.13 + ratioScore * 0.23 + centerScore * 0.1 + parallelScore * 0.16 + lengthSymmetry * 0.08 + boundaryScore * 0.2 + frameScore * 0.1;
+      const score = confidence * (0.78 + areaScore * 0.22) * (0.35 + frameScore * 0.65);
+      return { points, score, confidence, rotated: verticalCard(points) };
     };
     const analyzeForeground = (input: any, evidence: any) => {
       let best: { points: [Point, Point, Point, Point]; score: number; confidence: number; rotated: boolean } | null = null;

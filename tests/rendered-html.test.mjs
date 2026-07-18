@@ -146,6 +146,43 @@ test("Canny reconstructs a perspective crop from separated opposite edge pairs",
   assert.ok(Math.abs((canny?.corners[2].y ?? 0) - corners[2].y / height) < 0.06);
 });
 
+test("Canny uses portrait pixel geometry and rejects larger shapes touching the photo frame", async () => {
+  globalThis.window ??= { cv: await Promise.resolve((await import("@techstark/opencv-js")).default) };
+  globalThis.HTMLImageElement ??= class HTMLImageElement {};
+  globalThis.HTMLCanvasElement ??= class HTMLCanvasElement {};
+  globalThis.ImageData ??= class ImageData {
+    constructor(data, width, height) { this.data = data; this.width = width; this.height = height; }
+  };
+  const width = 720;
+  const height = 960;
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    pixels[offset] = 105; pixels[offset + 1] = 32; pixels[offset + 2] = 35; pixels[offset + 3] = 255;
+  }
+  for (let y = 0; y < 250; y += 1) {
+    for (let x = 0; x < 560 - y; x += 1) {
+      const offset = (y * width + x) * 4;
+      pixels[offset] = 12; pixels[offset + 1] = 17; pixels[offset + 2] = 19;
+    }
+  }
+  for (let y = 350; y <= 715; y += 1) {
+    for (let x = 70; x <= 650; x += 1) {
+      const offset = (y * width + x) * 4;
+      pixels[offset] = 235; pixels[offset + 1] = 234; pixels[offset + 2] = 228;
+    }
+  }
+  const canvas = new globalThis.HTMLCanvasElement();
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext = () => ({ getImageData: () => new globalThis.ImageData(pixels, width, height) });
+  const candidates = await detectDocumentCandidatesWithOpenCv(canvas);
+  const canny = candidates.find((candidate) => candidate.id === "canny")?.detection;
+  assert.equal(canny?.found, true);
+  assert.ok((canny?.corners[0].x ?? 0) > 0.05, "crop should not attach to the left photo boundary");
+  assert.ok((canny?.corners[0].y ?? 0) > 0.3, "crop should reject the stronger top-frame distractor");
+  assert.ok(Math.abs((canny?.corners[2].y ?? 0) - 715 / height) < 0.05);
+});
+
 test("OpenCV perspective correction maps exact manual corners to a rectangle", async () => {
   globalThis.HTMLImageElement ??= class HTMLImageElement {};
   globalThis.HTMLCanvasElement ??= class HTMLCanvasElement {};
