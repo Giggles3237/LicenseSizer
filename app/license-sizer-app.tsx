@@ -1,9 +1,9 @@
 "use client";
 
 import { ChangeEvent, KeyboardEvent, PointerEvent, useCallback, useEffect, useRef, useState } from "react";
-import { analyzeImage, correctPerspective, DEFAULT_CORNERS, detectDocument, DetectionResult, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
+import { analyzeImage, correctPerspective, CropCandidate, DEFAULT_CORNERS, detectDocumentCandidates, DetectionResult, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry";
-import { cornersToEdgeLines, edgeLinesToCorners, extendLineToBounds, type EdgeLine } from "../lib/document-geometry";
+import { cornersToEdgeLines, edgeLinesToCorners, type EdgeLine } from "../lib/document-geometry";
 import { createDevelopmentAnalysisView, DEVELOPMENT_ANALYSIS_VIEWS, type DevelopmentAnalysisView } from "../lib/development-analysis";
 import type { PdfOptions } from "../lib/pdf";
 
@@ -88,6 +88,8 @@ export default function LicenseSizerApp() {
   const [selectedLine, setSelectedLine] = useState(0);
   const [quality, setQuality] = useState<QualityResult | null>(null);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
+  const [cropCandidates, setCropCandidates] = useState<CropCandidate[]>([]);
+  const [candidateIndex, setCandidateIndex] = useState(0);
   const [draftAspect, setDraftAspect] = useState(1.333);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -144,6 +146,8 @@ export default function LicenseSizerApp() {
     setDraftUrl("");
     setQuality(null);
     setDetection(null);
+    setCropCandidates([]);
+    setCandidateIndex(0);
     setEdgeLines(cornersToEdgeLines(DEFAULT_CORNERS));
   }, [draftUrl, releaseAnalysisView]);
 
@@ -274,8 +278,11 @@ export default function LicenseSizerApp() {
       const url = URL.createObjectURL(blob);
       setDraft(blob);
       setDraftUrl(url);
-      const [qualityResult, detectionResult] = await Promise.all([analyzeImage(blob), detectDocument(blob, guideCorners)]);
+      const [qualityResult, candidates] = await Promise.all([analyzeImage(blob), detectDocumentCandidates(blob, guideCorners)]);
+      const detectionResult = candidates[0].detection;
       setQuality(qualityResult);
+      setCropCandidates(candidates);
+      setCandidateIndex(0);
       setDetection(detectionResult);
       setDraftAspect(detectionResult.aspectRatio);
       setEdgeLines(cornersToEdgeLines(detectionResult.corners));
@@ -339,6 +346,17 @@ export default function LicenseSizerApp() {
     dragHandle.current = { kind: "handle", line: lineIndex, end };
     event.currentTarget.setPointerCapture(event.pointerId);
     moveFromPointer(event, lineIndex, end);
+  };
+
+  const chooseCropCandidate = (index: number) => {
+    if (!cropCandidates.length) return;
+    const normalized = (index + cropCandidates.length) % cropCandidates.length;
+    const candidate = cropCandidates[normalized];
+    setCandidateIndex(normalized);
+    setDetection(candidate.detection);
+    setEdgeLines(cornersToEdgeLines(candidate.detection.corners));
+    setSelectedLine(0);
+    setMessage("");
   };
 
   const startWholeLineDrag = (event: PointerEvent<HTMLButtonElement>, lineIndex: number) => {
@@ -427,7 +445,10 @@ export default function LicenseSizerApp() {
     setDraftUrl(URL.createObjectURL(item.source));
     setDraftAspect(item.sourceAspect);
     setEdgeLines(cornersToEdgeLines(item.corners));
-    setDetection(null);
+    const savedDetection: DetectionResult = { corners: item.corners, confidence: 1, found: true, rotated: false, aspectRatio: item.sourceAspect };
+    setCropCandidates([{ id: "framing", label: "Saved crop", detail: "The crop previously used for this image.", detection: savedDetection }]);
+    setCandidateIndex(0);
+    setDetection(savedDetection);
     setQuality(null);
     setMessage("");
     setStage("review");
@@ -495,15 +516,11 @@ export default function LicenseSizerApp() {
   const canShare = Boolean(typeof navigator !== "undefined" && pdfBlob && navigator.share && navigator.canShare?.({ files: [new File([pdfBlob], pdfFilename(), { type: "application/pdf" })] }));
   const cropCorners = edgeLinesToCorners(edgeLines);
   const cropLines = edgeLines.map((line) => {
-    const visible = extendLineToBounds(line);
-    const dx = (visible.end.x - visible.start.x) * 100;
-    const dy = (visible.end.y - visible.start.y) * 100;
-    return { left: `${visible.start.x * 100}%`, top: `${visible.start.y * 100}%`, width: `${Math.sqrt(dx * dx + dy * dy)}%`, transform: `rotate(${Math.atan2(dy, dx)}rad)` };
+    const dx = (line.end.x - line.start.x) * 100;
+    const dy = (line.end.y - line.start.y) * 100;
+    return { left: `${line.start.x * 100}%`, top: `${line.start.y * 100}%`, width: `${Math.sqrt(dx * dx + dy * dy)}%`, transform: `rotate(${Math.atan2(dy, dx)}rad)` };
   });
-  const lineLabels = edgeLines.map((line) => ({
-    left: `${((line.start.x + line.end.x) / 2) * 100}%`,
-    top: `${((line.start.y + line.end.y) / 2) * 100}%`,
-  }));
+  const selectedCandidate = cropCandidates[candidateIndex] ?? null;
   const activeItem = activeSide === "front" ? front : back;
 
   return (
@@ -580,14 +597,18 @@ export default function LicenseSizerApp() {
         {stage === "review" && draftUrl && (
           <div className="panel review-panel">
             <div className="panel-heading"><div><span className="step-kicker">Review {sideLabel(activeSide)}</span><h1>Check the automatic crop</h1></div><button className="text-button" onClick={() => beginCapture(activeSide)}>Retake</button></div>
-            <p>{detection?.found ? "We separated the license from its background and placed a line on each edge." : "The background separation was uncertain. Adjust each line until it follows a license edge."} Tap a line to select it, drag the line to move it, or drag either of its two end handles to change its angle.</p>
-            <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{detection?.found ? `Background-isolated crop • ${Math.round(detection.confidence * 100)}%` : "Manual line adjustment"}</div>
+            <p>Cycle through the on-device suggestions, beginning with Canny edges. Each preview repositions the crop around the main image. Then drag the crop boundary or either endpoint handle to fine-tune it.</p>
+            {selectedCandidate && cropCandidates.length > 1 && <div className="crop-candidate-picker" aria-label="Automatic crop suggestions">
+              <button type="button" className="candidate-arrow" onClick={() => chooseCropCandidate(candidateIndex - 1)} aria-label="Previous crop suggestion">‹</button>
+              <div className="candidate-summary" aria-live="polite"><span>Suggestion {candidateIndex + 1} of {cropCandidates.length}</span><strong>{selectedCandidate.label}</strong><small>{selectedCandidate.detail}</small><div className="candidate-dots">{cropCandidates.map((candidate, index) => <button type="button" key={candidate.id} className={index === candidateIndex ? "active" : ""} aria-label={`Use ${candidate.label} crop suggestion`} aria-current={index === candidateIndex ? "true" : undefined} onClick={() => chooseCropCandidate(index)} />)}</div></div>
+              <button type="button" className="candidate-arrow" onClick={() => chooseCropCandidate(candidateIndex + 1)} aria-label="Next crop suggestion">›</button>
+            </div>}
+            <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{selectedCandidate?.label ?? "Manual crop"}{detection?.found ? ` • ${Math.round(detection.confidence * 100)}% match` : " • adjust as needed"}</div>
             <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(65vh * ${draftAspect}))` }} ref={cropRef} onPointerMove={moveActiveDrag} onPointerUp={() => { dragHandle.current = null; }} onPointerCancel={() => { dragHandle.current = null; }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={draftUrl} alt={`Uncropped license ${sideLabel(activeSide)}`} draggable={false} />
-              {cropCorners && <svg className="crop-selection" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path className="crop-mask" fillRule="evenodd" d={`M0 0H100V100H0Z M${cropCorners.map((point) => `${point.x * 100} ${point.y * 100}`).join("L")}Z`} /><polygon points={cropCorners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")} /></svg>}
+              {cropCorners && <svg className="crop-selection" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path className="crop-mask" fillRule="evenodd" d={`M0 0H100V100H0Z M${cropCorners.map((point) => `${point.x * 100} ${point.y * 100}`).join("L")}Z`} /><polygon className="crop-boundary-halo" points={cropCorners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")} /><polygon className="crop-boundary" points={cropCorners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")} /></svg>}
               {cropLines.map((style, index) => <button type="button" className={`crop-line${selectedLine === index ? " selected" : ""}`} style={style} key={LINE_NAMES[index]} aria-label={`Select and move ${LINE_NAMES[index]} crop line`} aria-pressed={selectedLine === index} onPointerDown={(event) => startWholeLineDrag(event, index)} />)}
-              {lineLabels.map((style, index) => <span className={`crop-line-label${selectedLine === index ? " selected" : ""}`} style={style} key={LINE_NAMES[index]}>{LINE_NAMES[index]}</span>)}
               <EdgeLineHandles lines={edgeLines} selectedLine={selectedLine} onKey={onHandleKey} onStart={startLineDrag} />
             </div>
             {quality && <div className={`quality ${quality.status}`}><span aria-hidden="true">{quality.status === "pass" ? "✓" : "!"}</span><div><strong>{quality.title}</strong><p>{quality.detail}</p></div></div>}

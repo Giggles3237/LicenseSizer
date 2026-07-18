@@ -4,7 +4,7 @@ import test from "node:test";
 import { CARD_HEIGHT_POINTS, CARD_WIDTH_POINTS, cardPlacement } from "../lib/pdf.ts";
 import { orientDocumentCorners } from "../lib/image-processing.ts";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry.ts";
-import { detectDocumentWithOpenCv, warpDocumentWithOpenCv } from "../lib/opencv-document.ts";
+import { detectDocumentCandidatesWithOpenCv, detectDocumentWithOpenCv, warpDocumentWithOpenCv } from "../lib/opencv-document.ts";
 import { cornersToEdgeLines, edgeLinesToCorners, extendLineToBounds, orderDocumentPoints, squareToQuadrilateral } from "../lib/document-geometry.ts";
 
 const root = new URL("../", import.meta.url);
@@ -98,6 +98,8 @@ test("OpenCV analysis finds a four-corner card contour instead of copying the gu
   assert.equal(result?.found, true);
   assert.ok((result?.confidence ?? 0) > 0.75);
   assert.ok(Math.abs((result?.corners[0].x ?? 0) - guide[0].x) > 0.05);
+  const candidates = await detectDocumentCandidatesWithOpenCv(canvas, guide);
+  assert.equal(candidates[0]?.id, "canny", "Canny must be the first automatic crop model");
 });
 
 test("OpenCV perspective correction maps exact manual corners to a rectangle", async () => {
@@ -163,16 +165,22 @@ test("independent edge lines extend to the photo bounds and intersect into the c
   assert.notDeepEqual(intersections[0], expected[0], "moving one line end should change its intersections independently");
 });
 
-test("crop lines are selectable and expose two endpoint handles", async () => {
+test("crop suggestions start with Canny and retain endpoint handles without visible guide lines", async () => {
   const component = await readFile(new URL("../app/license-sizer-app.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const processing = await readFile(new URL("../lib/image-processing.ts", import.meta.url), "utf8");
   assert.match(component, /Select and move.*crop line/);
   assert.match(component, /handle \$\{endIndex \+ 1\} of 2/);
   assert.match(component, /startWholeLineDrag/);
   assert.match(component, /aria-pressed=\{selectedLine === index\}/);
-  assert.match(styles, /\.crop-line\.selected::before/);
+  assert.match(component, /Previous crop suggestion/);
+  assert.match(component, /Next crop suggestion/);
+  assert.match(component, /chooseCropCandidate/);
+  assert.match(processing, /const candidates: CropCandidate\[\] = \[canny, background, gradient\]/);
+  assert.doesNotMatch(styles, /\.crop-line::before|\.crop-line\.selected::before/);
   assert.match(styles, /\.line-handle\.selected/);
   assert.match(styles, /\.crop-selection \.crop-mask/);
+  assert.match(styles, /\.crop-selection \.crop-boundary/);
 });
 
 test("edge labels retain screen order for portrait crops", () => {

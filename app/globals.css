@@ -114,17 +114,24 @@ button { color: inherit; }
 .detection-badge.found { color: #16665a; background: var(--mint); }
 .detection-badge span { width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #b78017; }
 .detection-badge.found span { background: var(--teal); }
+.crop-candidate-picker { display: grid; grid-template-columns: 46px minmax(0, 1fr) 46px; align-items: stretch; gap: 9px; margin: 14px 0 20px; padding: 10px; border: 1px solid #cadbd8; border-radius: 13px; background: linear-gradient(145deg, #f5fbf9, #e9f5f2); box-shadow: 0 8px 24px rgba(13,62,69,.08); }
+.candidate-arrow { min-height: 86px; border: 1px solid #b9d4ce; border-radius: 9px; color: var(--teal-dark); background: rgba(255,255,255,.9); font-size: 30px; cursor: pointer; }
+.candidate-arrow:active { background: var(--mint); transform: scale(.98); }
+.candidate-summary { min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 5px 9px; text-align: center; }
+.candidate-summary > span { color: var(--teal-dark); font-size: 9px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
+.candidate-summary strong { margin-top: 3px; color: var(--navy); font-size: 16px; }
+.candidate-summary small { max-width: 440px; margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.35; }
+.candidate-dots { display: flex; gap: 7px; margin-top: 9px; }
+.candidate-dots button { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: #a9bbb8; cursor: pointer; }
+.candidate-dots button.active { width: 24px; border-radius: 5px; background: var(--teal); }
 .crop-stage { position: relative; overflow: hidden; max-width: 100%; margin-inline: auto; display: grid; place-items: center; border-radius: 13px; background: #17252c; touch-action: none; user-select: none; }
 .crop-stage > img { width: 100%; height: 100%; display: block; object-fit: cover; pointer-events: none; }
 .crop-selection { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; pointer-events: none; }
-.crop-selection .crop-mask { fill: rgba(4,15,20,.46); }
-.crop-selection polygon { fill: rgba(67,224,193,.1); stroke: rgba(255,255,255,.85); stroke-width: .45; vector-effect: non-scaling-stroke; }
+.crop-selection .crop-mask { fill: rgba(3,12,17,.62); }
+.crop-selection .crop-boundary-halo { fill: rgba(83,237,205,.08); stroke: rgba(2,20,24,.82); stroke-width: 2.3; vector-effect: non-scaling-stroke; }
+.crop-selection .crop-boundary { fill: rgba(83,237,205,.07); stroke: #72f0d5; stroke-width: .8; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 3px rgba(36,255,211,.85)); }
 .crop-line { position: absolute; z-index: 2; height: 34px; margin-top: -17px; padding: 0; border: 0; background: transparent; transform-origin: left center; cursor: grab; touch-action: none; }
-.crop-line::before { content: ""; position: absolute; inset: 15px 0; border-radius: 2px; background: #43e0c1; box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 0 7px rgba(67,224,193,.55); }
-.crop-line.selected::before { inset-block: 14px; background: #fff; box-shadow: 0 0 0 2px var(--teal), 0 0 10px rgba(67,224,193,.85); }
 .crop-line:active { cursor: grabbing; }
-.crop-line-label { position: absolute; z-index: 4; translate: -50% -50%; padding: 3px 7px; border: 1px solid rgba(255,255,255,.8); border-radius: 999px; color: #fff; background: rgba(5,37,43,.82); box-shadow: 0 2px 6px rgba(0,0,0,.28); font-size: 9px; font-weight: 900; letter-spacing: .06em; line-height: 1; text-transform: uppercase; pointer-events: none; }
-.crop-line-label.selected { color: var(--navy); background: #fff; box-shadow: 0 0 0 2px var(--teal), 0 2px 7px rgba(0,0,0,.32); }
 .crop-handle { position: absolute; z-index: 3; width: 38px; height: 38px; display: grid; place-items: center; margin: -19px 0 0 -19px; border: 3px solid #fff; border-radius: 50%; color: #fff; background: var(--teal); box-shadow: 0 3px 10px rgba(0,0,0,.3); font-size: 12px; font-weight: 900; cursor: grab; touch-action: none; }
 .line-handle { width: 34px; height: 34px; margin: -17px 0 0 -17px; border-width: 2px; opacity: .72; }
 .line-handle.selected { z-index: 5; width: 42px; height: 42px; margin: -21px 0 0 -21px; opacity: 1; box-shadow: 0 0 0 3px rgba(255,255,255,.35), 0 4px 12px rgba(0,0,0,.38); }

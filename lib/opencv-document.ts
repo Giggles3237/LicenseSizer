@@ -2,6 +2,13 @@
 import type { DetectionResult, Point } from "./image-processing";
 import { orderDocumentPoints } from "./document-geometry.ts";
 
+export type OpenCvCropCandidate = {
+  id: "canny" | "background";
+  label: string;
+  detail: string;
+  detection: DetectionResult;
+};
+
 let openCvPromise: Promise<any> | null = null;
 
 export async function loadOpenCv() {
@@ -40,18 +47,36 @@ export async function detectDocumentWithOpenCv(
   canvas: HTMLCanvasElement,
   hint?: [Point, Point, Point, Point],
 ): Promise<DetectionResult | null> {
+  const candidates = await detectDocumentCandidatesWithOpenCv(canvas, hint);
+  return candidates.find((candidate) => candidate.detection.found)?.detection ?? candidates[0]?.detection ?? null;
+}
+
+export async function detectDocumentCandidatesWithOpenCv(
+  canvas: HTMLCanvasElement,
+  hint?: [Point, Point, Point, Point],
+): Promise<OpenCvCropCandidate[]> {
   const cv = await loadOpenCv();
   const src = cv.imread(canvas);
   const rgb = new cv.Mat();
+  const gray = new cv.Mat();
+  const blurred = new cv.Mat();
+  const canny = new cv.Mat();
+  const cannyClosed = new cv.Mat();
   const lab = new cv.Mat();
   const mask = new cv.Mat();
   const closed = new cv.Mat();
   const kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(11, 11));
+  const cannyKernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(7, 7));
 
   try {
     // Treat the outer rim as background, then segment the object that differs
     // from it. This avoids searching every texture and printed edge in the photo.
     cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(gray, blurred, new cv.Size(7, 7), 0, 0, cv.BORDER_DEFAULT);
+    cv.Canny(blurred, canny, 45, 135);
+    cv.morphologyEx(canny, cannyClosed, cv.MORPH_CLOSE, cannyKernel, new cv.Point(-1, -1), 2);
+    cv.dilate(cannyClosed, cannyClosed, cannyKernel, new cv.Point(-1, -1), 1);
     cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab);
     mask.create(canvas.height, canvas.width, cv.CV_8UC1);
     const borderSamples: number[][] = [[], [], []];
@@ -81,9 +106,8 @@ export async function detectDocumentWithOpenCv(
     const hintCenter = hint
       ? { x: hint.reduce((sum, point) => sum + point.x, 0) / 4, y: hint.reduce((sum, point) => sum + point.y, 0) / 4 }
       : { x: 0.5, y: 0.5 };
-    let best: { points: [Point, Point, Point, Point]; score: number; confidence: number; rotated: boolean } | null = null;
-
     const analyzeForeground = (input: any) => {
+      let best: { points: [Point, Point, Point, Point]; score: number; confidence: number; rotated: boolean } | null = null;
       const contours = new cv.MatVector();
       const hierarchy = new cv.Mat();
       try {
@@ -113,8 +137,9 @@ export async function detectDocumentWithOpenCv(
                 const bottom = distance(ordered[3], ordered[2]);
                 const left = distance(ordered[0], ordered[3]);
                 const right = distance(ordered[1], ordered[2]);
-                const ratio = ((top + bottom) / 2) / Math.max(0.001, (left + right) / 2);
-                const ratioScore = Math.max(0, 1 - Math.abs(ratio - 1.58577) / 0.9);
+                const rawRatio = ((top + bottom) / 2) / Math.max(0.001, (left + right) / 2);
+                const measuredRatio = Math.max(rawRatio, 1 / Math.max(0.001, rawRatio));
+                const ratioScore = Math.max(0, 1 - Math.abs(measuredRatio - 1.58577) / 0.9);
                 const normalizedArea = polygonArea(ordered);
                 const areaScore = Math.min(1, normalizedArea / 0.32);
                 const center = { x: ordered.reduce((sum, point) => sum + point.x, 0) / 4, y: ordered.reduce((sum, point) => sum + point.y, 0) / 4 };
@@ -136,23 +161,32 @@ export async function detectDocumentWithOpenCv(
         hierarchy.delete();
         contours.delete();
       }
+      return best;
     };
 
-    analyzeForeground(closed);
-
-    if (!best) return null;
-    return {
+    const toDetection = (best: { points: [Point, Point, Point, Point]; confidence: number; rotated: boolean } | null): DetectionResult | null => best ? ({
       corners: best.points,
       confidence: best.confidence,
-      found: best.confidence >= 0.64,
+      found: best.confidence >= 0.58,
       rotated: best.rotated,
       aspectRatio: canvas.width / canvas.height,
-    };
+    }) : null;
+    const cannyDetection = toDetection(analyzeForeground(cannyClosed));
+    const backgroundDetection = toDetection(analyzeForeground(closed));
+    const candidates: OpenCvCropCandidate[] = [];
+    if (cannyDetection) candidates.push({ id: "canny", label: "Canny edges", detail: "Follows the strongest connected edges around the main object.", detection: cannyDetection });
+    if (backgroundDetection) candidates.push({ id: "background", label: "Background contrast", detail: "Separates the main object from the color around the photo rim.", detection: backgroundDetection });
+    return candidates;
   } finally {
+    cannyKernel.delete();
     kernel.delete();
     closed.delete();
     mask.delete();
     lab.delete();
+    cannyClosed.delete();
+    canny.delete();
+    blurred.delete();
+    gray.delete();
     rgb.delete();
     src.delete();
   }

@@ -19,6 +19,13 @@ export type DetectionResult = {
   aspectRatio: number;
 };
 
+export type CropCandidate = {
+  id: "canny" | "background" | "gradient" | "framing";
+  label: string;
+  detail: string;
+  detection: DetectionResult;
+};
+
 export const DEFAULT_CORNERS: [Point, Point, Point, Point] = [
   { x: 0.06, y: 0.08 },
   { x: 0.94, y: 0.08 },
@@ -140,23 +147,62 @@ export function orientDocumentCorners(points: [Point, Point, Point, Point]) {
 }
 
 export async function detectDocument(source: Blob, hint?: [Point, Point, Point, Point]): Promise<DetectionResult> {
+  const candidates = await detectDocumentCandidates(source, hint);
+  return candidates[0].detection;
+}
+
+const insetCorners = (insetX: number, insetY: number): [Point, Point, Point, Point] => [
+  { x: insetX, y: insetY },
+  { x: 1 - insetX, y: insetY },
+  { x: 1 - insetX, y: 1 - insetY },
+  { x: insetX, y: 1 - insetY },
+];
+
+export async function detectDocumentCandidates(source: Blob, hint?: [Point, Point, Point, Point]): Promise<CropCandidate[]> {
   const canvas = await sourceToCanvas(source, 960);
+  let openCvCandidates: CropCandidate[] = [];
   try {
-    const { detectDocumentWithOpenCv } = await import("./opencv-document");
-    const result = await timeoutAfter(detectDocumentWithOpenCv(canvas, hint), 12_000, "The detailed analyzer was unavailable.");
-    if (result?.found) return result;
+    const { detectDocumentCandidatesWithOpenCv } = await import("./opencv-document");
+    openCvCandidates = await timeoutAfter(detectDocumentCandidatesWithOpenCv(canvas, hint), 12_000, "The detailed analyzer was unavailable.");
   } catch {
     // Continue with the lightweight on-device detector below.
   }
   const fallback = await detectDocumentLegacy(source);
-  if (fallback.found) return fallback;
-  return {
-    corners: (hint ?? DEFAULT_CORNERS).map((point) => ({ ...point })) as [Point, Point, Point, Point],
+  const aspectRatio = canvas.width / canvas.height;
+  const uncertain = (corners: [Point, Point, Point, Point]): DetectionResult => ({
+    corners: corners.map((point) => ({ ...point })) as [Point, Point, Point, Point],
     confidence: 0,
     found: false,
     rotated: false,
-    aspectRatio: canvas.width / canvas.height,
+    aspectRatio,
+  });
+  const byId = new Map(openCvCandidates.map((candidate) => [candidate.id, candidate]));
+  const canny = byId.get("canny") ?? {
+    id: "canny" as const,
+    label: "Canny edges",
+    detail: "No closed edge loop was strong enough, so this begins near the photographed card area.",
+    detection: uncertain(hint ?? DEFAULT_CORNERS),
   };
+  const background = byId.get("background") ?? {
+    id: "background" as const,
+    label: "Background contrast",
+    detail: "A conservative inset based on the main area of the photo.",
+    detection: uncertain(insetCorners(0.1, 0.12)),
+  };
+  const gradient: CropCandidate = {
+    id: "gradient",
+    label: "Gradient regions",
+    detail: fallback.found ? "Groups strong brightness changes into the most likely centered card region." : "A wider fallback when connected gradients are uncertain.",
+    detection: fallback.found ? fallback : uncertain(insetCorners(0.055, 0.075)),
+  };
+  const candidates: CropCandidate[] = [canny, background, gradient];
+  if (hint) candidates.push({
+    id: "framing",
+    label: "Camera framing",
+    detail: "Uses the guide position visible when the photo was taken.",
+    detection: uncertain(hint),
+  });
+  return candidates;
 }
 
 export async function detectDocumentLegacy(source: Blob): Promise<DetectionResult> {
