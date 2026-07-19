@@ -8,8 +8,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host?.includes("localhost") ? "http" : "https");
   const metadataBase = host ? new URL(`${protocol}://${host}`) : undefined;
-  const title = "LicenseSizer — True-size license PDFs";
-  const description = "Turn a phone photo into a clean, print-ready, true-size driver's-license PDF. Processing stays on your device.";
+  const title = "LicenseSizer — Private license collection for dealerships";
+  const description = "Give customers a branded link to create and deliver clean, true-size driver's-license PDFs—without storing their license images.";
   return {
     metadataBase,
     title,
@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
     applicationName: "LicenseSizer",
     manifest: "/manifest.webmanifest",
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
-    openGraph: { title, description, type: "website", images: [{ url: "/og.png", width: 1536, height: 896, alt: "LicenseSizer turns a license photo into a true-size PDF" }] },
+    openGraph: { title, description, type: "website", images: [{ url: "/og.png", width: 1536, height: 896, alt: "LicenseSizer private license collection for dealerships" }] },
     twitter: { card: "summary_large_image", title, description, images: ["/og.png"] },
   };
 }
