@@ -19,18 +19,32 @@ async function requireOrganization(requireAdmin: boolean) {
 export async function GET() {
   const access = await requireOrganization(false);
   if ("error" in access) return access.error;
-  let profile = await getDealerProfile(access.organizationId);
-  if (!profile) {
-    if (access.session.orgRole !== "org:admin") return Response.json({ error: "An organization admin must finish dealership setup first." }, { status: 404 });
-    const organization = await (await clerkClient()).organizations.getOrganization({ organizationId: access.organizationId });
-    const baseSlug = slugify(organization.slug || organization.name) || "dealer";
-    profile = await saveDealerProfile(access.organizationId, {
-      ...DEFAULT_DELIVERY_PROFILE,
-      dealerName: organization.name,
-      publicSlug: `${baseSlug}-${access.organizationId.slice(-6).toLowerCase()}`,
-    });
+  try {
+    let profile = await getDealerProfile(access.organizationId);
+    if (!profile) {
+      if (access.session.orgRole !== "org:admin") return Response.json({ error: "An organization admin must finish dealership setup first." }, { status: 404 });
+      const organization = await (await clerkClient()).organizations.getOrganization({ organizationId: access.organizationId });
+      const baseSlug = slugify(organization.slug || organization.name) || "dealer";
+      profile = await saveDealerProfile(access.organizationId, {
+        ...DEFAULT_DELIVERY_PROFILE,
+        dealerName: organization.name,
+        publicSlug: `${baseSlug}-${access.organizationId.slice(-6).toLowerCase()}`,
+      });
+    }
+    return Response.json({ profile });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("DATABASE_URL")) {
+      return Response.json({ error: "The LicenseSizer database is not configured yet. Add DATABASE_URL in Vercel, then redeploy." }, { status: 503 });
+    }
+    if (typeof error === "object" && error && "cause" in error) {
+      const cause = error.cause;
+      if (typeof cause === "object" && cause && "code" in cause && cause.code === "42P01") {
+        return Response.json({ error: "The LicenseSizer database setup is incomplete. Apply the database migration, then reload this page." }, { status: 503 });
+      }
+    }
+    console.error("Unable to load dealership profile", error);
+    return Response.json({ error: "The dealership workspace could not be loaded. Please try again." }, { status: 500 });
   }
-  return Response.json({ profile });
 }
 
 export async function PUT(request: Request) {

@@ -12,6 +12,29 @@ type Report = {
 };
 type Billing = { configured: boolean; hasAccess: boolean; subscription: null | { status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } };
 
+async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
+  const contentType = response.headers.get("content-type") || "";
+  let payload: unknown = null;
+
+  if (contentType.includes("application/json")) {
+    try {
+      payload = await response.json();
+    } catch {
+      // Treat an empty or malformed response as a server error below.
+    }
+  }
+
+  if (!response.ok) {
+    const message = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
+      ? payload.error
+      : fallback;
+    throw new Error(message);
+  }
+
+  if (!payload) throw new Error(fallback);
+  return payload as T;
+}
+
 const eventLabels: Record<string, string> = {
   session_started: "Started a license session", front_captured: "Captured the front", back_captured: "Captured the back",
   pdf_created: "Created a PDF", share_opened: "Opened the share sheet", pdf_downloaded: "Downloaded a PDF",
@@ -28,12 +51,16 @@ export default function DashboardClient({ canManage }: { canManage: boolean }) {
   const load = useCallback(async () => {
     try {
       const profileResponse = await fetch("/api/admin/profile");
-      if (!profileResponse.ok) throw new Error((await profileResponse.json()).error || "Unable to load dealership settings.");
-      setProfile((await profileResponse.json()).profile);
+      const profilePayload = await readApiResponse<{ profile: DealerDeliveryProfile }>(profileResponse, "Unable to load dealership settings. Please try again.");
+      setProfile(profilePayload.profile);
       if (!canManage) { setStatus(""); return; }
       const [reportResponse, billingResponse] = await Promise.all([fetch("/api/admin/report"), fetch("/api/admin/billing")]);
-      if (reportResponse.ok) setReport(await reportResponse.json());
-      if (billingResponse.ok) setBilling(await billingResponse.json());
+      const [reportPayload, billingPayload] = await Promise.all([
+        readApiResponse<Report>(reportResponse, "Unable to load activity reporting."),
+        readApiResponse<Billing>(billingResponse, "Unable to load billing information."),
+      ]);
+      setReport(reportPayload);
+      setBilling(billingPayload);
       setStatus("");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Unable to load the dashboard."); }
   }, [canManage]);
@@ -47,19 +74,25 @@ export default function DashboardClient({ canManage }: { canManage: boolean }) {
     if (!profile) return;
     setStatus("Saving dealership settings…");
     const response = await fetch("/api/admin/profile", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(profile) });
-    const payload = await response.json();
-    if (!response.ok) { setStatus(payload.error || "Settings could not be saved."); return; }
-    setProfile(payload.profile);
-    setStatus("Settings saved.");
+    try {
+      const payload = await readApiResponse<{ profile: DealerDeliveryProfile }>(response, "Settings could not be saved.");
+      setProfile(payload.profile);
+      setStatus("Settings saved.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Settings could not be saved.");
+    }
   };
 
   const publicUrl = profile && typeof window !== "undefined" ? `${window.location.origin}/d/${profile.publicSlug}` : "";
   const openBilling = async (kind: "checkout" | "portal") => {
     setStatus(kind === "checkout" ? "Opening secure checkout…" : "Opening billing portal…");
     const response = await fetch(`/api/admin/billing/${kind}`, { method: "POST" });
-    const payload = await response.json();
-    if (!response.ok) { setStatus(payload.error || "Billing could not be opened."); return; }
-    window.location.href = payload.url;
+    try {
+      const payload = await readApiResponse<{ url: string }>(response, "Billing could not be opened.");
+      window.location.href = payload.url;
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Billing could not be opened.");
+    }
   };
 
   return <div className="admin-layout">
