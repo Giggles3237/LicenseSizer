@@ -35,15 +35,29 @@ async function rotateImageClockwise(source: Blob): Promise<Blob> {
   output.width = input.height;
   output.height = input.width;
   const context = output.getContext("2d");
-  if (!context) throw new Error("Unable to rotate the adjusted image.");
+  if (!context) throw new Error("Unable to rotate the photo.");
   context.translate(output.width, 0);
   context.rotate(Math.PI / 2);
   context.drawImage(input, 0, 0);
   return new Promise((resolve, reject) => output.toBlob(
-    (blob) => blob ? resolve(blob) : reject(new Error("Unable to rotate the adjusted image.")),
+    (blob) => blob ? resolve(blob) : reject(new Error("Unable to rotate the photo.")),
     "image/jpeg",
     0.92,
   ));
+}
+
+function cropSuggestionName(candidate: CropCandidate, index: number) {
+  if (index === 0 && candidate.detection.found) return "Best match";
+  if (candidate.id === "framing") return "Camera frame";
+  if (!candidate.detection.found) return "Safe starting crop";
+  return `Alternate ${index + 1}`;
+}
+
+function cropSuggestionDetail(candidate: CropCandidate, index: number) {
+  if (index === 0 && candidate.detection.found) return "Recommended";
+  if (candidate.id === "framing") return "Based on the guide";
+  if (candidate.detection.found) return `${Math.round(candidate.detection.confidence * 100)}% match`;
+  return "Easy to adjust";
 }
 
 function Progress({ stage }: { stage: Stage }) {
@@ -334,6 +348,19 @@ export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PRO
     canvas.toBlob((blob) => blob && void prepareDraft(blob, guideCorners), "image/jpeg", 0.94);
   };
 
+  const rotateDraft = async () => {
+    if (!draft) return;
+    setBusy(true);
+    setMessage("Rotating the photo…");
+    try {
+      const rotated = await rotateImageClockwise(draft);
+      await prepareDraft(rotated);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to rotate the photo.");
+      setBusy(false);
+    }
+  };
+
   const updateLineEnd = (lineIndex: number, end: "start" | "end", x: number, y: number) => {
     setEdgeLines((current) => current.map((line, index) => index === lineIndex
       ? { ...line, [end]: { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) } }
@@ -472,26 +499,6 @@ export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PRO
     setStage("review");
   };
 
-  const rotateAdjusted = async (side: Side) => {
-    const item = side === "front" ? front : back;
-    if (!item) return;
-    setBusy(true);
-    setMessage("Rotating the adjusted image…");
-    try {
-      const corrected = await rotateImageClockwise(item.corrected);
-      const correctedUrl = URL.createObjectURL(corrected);
-      URL.revokeObjectURL(item.correctedUrl);
-      const update = (current: CapturedSide | null) => current ? { ...current, corrected, correctedUrl } : current;
-      if (side === "front") setFront(update);
-      else setBack(update);
-      setMessage("");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to rotate the adjusted image.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const beginCapture = (side: Side) => {
     stopCamera();
     clearDraft();
@@ -529,6 +536,7 @@ export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PRO
       const destination = deliveryEmail ? `\n\nRequested destination: ${deliveryEmail}` : "";
       await navigator.share({ files: [file], title: deliverySubject, text: `${deliveryMessage}${destination}` });
       postActivity("share_opened", "native-share");
+      setMessage("The share sheet was opened. Confirm the correct app and recipient before sending; LicenseSizer cannot verify delivery.");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setMessage("Sharing was not completed. Your download is still available below.");
@@ -588,7 +596,7 @@ export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PRO
               <div><strong>Front + back</strong><span>One tidy PDF</span></div>
               <div><strong>No account</strong><span>Clear when finished</span></div>
             </div>
-            {!deliveryProfile.publicSlug && <div className="dealer-cta"><div><span className="step-kicker">For dealerships</span><strong>Give every customer a private, branded delivery link.</strong><p>Set document rules once, invite your team, and track completed handoffs without storing license images.</p></div><a className="secondary" href="/dashboard">Start dealership trial</a></div>}
+            {!deliveryProfile.publicSlug && <div className="dealer-cta"><div><span className="step-kicker">For dealerships</span><strong>Give every customer a private, branded handoff link.</strong><p>Set document rules once, invite your team, and track PDF preparation and sharing options without storing license images.</p></div><a className="secondary" href="/dashboard">Start dealership trial</a></div>}
           </div>
         )}
 
@@ -636,14 +644,13 @@ export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PRO
 
         {stage === "review" && draftUrl && (
           <div className="panel review-panel">
-            <div className="panel-heading"><div><span className="step-kicker">Review {sideLabel(activeSide)}</span><h1>Check the automatic crop</h1></div><button className="text-button" onClick={() => beginCapture(activeSide)}>Retake</button></div>
-            <p>Cycle through the on-device suggestions, beginning with Canny edges. Each preview repositions the crop around the main image. Then drag the crop boundary or either endpoint handle to fine-tune it.</p>
-            {selectedCandidate && cropCandidates.length > 1 && <div className="crop-candidate-picker" aria-label="Automatic crop suggestions">
-              <button type="button" className="candidate-arrow" onClick={() => chooseCropCandidate(candidateIndex - 1)} aria-label="Previous crop suggestion">‹</button>
-              <div className="candidate-summary" aria-live="polite"><span>Suggestion {candidateIndex + 1} of {cropCandidates.length}</span><strong>{selectedCandidate.label}</strong><small>{selectedCandidate.detail}</small><div className="candidate-dots">{cropCandidates.map((candidate, index) => <button type="button" key={candidate.id} className={index === candidateIndex ? "active" : ""} aria-label={`Use ${candidate.label} crop suggestion`} aria-current={index === candidateIndex ? "true" : undefined} onClick={() => chooseCropCandidate(index)} />)}</div></div>
-              <button type="button" className="candidate-arrow" onClick={() => chooseCropCandidate(candidateIndex + 1)} aria-label="Next crop suggestion">›</button>
-            </div>}
-            <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{selectedCandidate?.label ?? "Manual crop"}{detection?.found ? ` • ${Math.round(detection.confidence * 100)}% match` : " • adjust as needed"}</div>
+            <div className="panel-heading"><div><span className="step-kicker">Review {sideLabel(activeSide)}</span><h1>Does this outline fit?</h1></div><div className="review-heading-actions"><button className="secondary compact" onClick={() => void rotateDraft()} disabled={busy} aria-label="Rotate photo 90 degrees clockwise">↻ Rotate</button><button className="text-button" onClick={() => beginCapture(activeSide)} disabled={busy}>Retake</button></div></div>
+            <p>Choose the outline that hugs all four edges of the license. Then drag any edge or round handle if it needs a small adjustment.</p>
+            {selectedCandidate && cropCandidates.length > 1 && <section className="crop-candidate-picker" aria-labelledby="crop-suggestions-title">
+              <div className="candidate-heading"><div><strong id="crop-suggestions-title">Crop suggestions</strong><span>Tap an option to compare it on the photo.</span></div><span>{cropCandidates.length} options</span></div>
+              <div className="candidate-options" role="radiogroup" aria-label="Crop suggestions">{cropCandidates.map((candidate, index) => <button type="button" role="radio" key={candidate.id} className={index === candidateIndex ? "active" : ""} aria-checked={index === candidateIndex} onClick={() => chooseCropCandidate(index)}><span>{index === candidateIndex ? "✓" : index + 1}</span><strong>{cropSuggestionName(candidate, index)}</strong><small>{cropSuggestionDetail(candidate, index)}</small></button>)}</div>
+            </section>}
+            <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{detection?.found ? `Automatic outline • ${Math.round(detection.confidence * 100)}% confidence` : "Starting outline • adjust as needed"}</div>
             <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(65vh * ${draftAspect}))` }} ref={cropRef} onPointerMove={moveActiveDrag} onPointerUp={() => { dragHandle.current = null; }} onPointerCancel={() => { dragHandle.current = null; }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={draftUrl} alt={`Uncropped license ${sideLabel(activeSide)}`} draggable={false} />
@@ -682,14 +689,13 @@ export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PRO
 
         {stage === "ready" && front && activeItem && (
           <div className="panel ready-panel">
-            <span className="step-kicker">Adjusted {sideLabel(activeSide)}</span><h1>Review the corrected image</h1><p>This is the image that will move forward. Rotate it here, or return to the original photo and adjust the crop lines again.</p>
+            <span className="step-kicker">Adjusted {sideLabel(activeSide)}</span><h1>Review the corrected image</h1><p>This is the image that will move forward. Return to the original photo if you need to rotate it or adjust the crop lines again.</p>
             <figure className="adjusted-preview">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={activeItem.correctedUrl} alt={`Adjusted license ${sideLabel(activeSide)}`} />
               <figcaption><span className="status-dot" />Perspective corrected</figcaption>
             </figure>
             <div className="adjusted-tools">
-              <button className="secondary" onClick={() => void rotateAdjusted(activeSide)} disabled={busy}>Rotate 90°</button>
               <button className="secondary" onClick={() => editCrop(activeSide)} disabled={busy}>← Back to crop</button>
               <button className="text-button" onClick={() => beginCapture(activeSide)} disabled={busy}>Retake photo</button>
             </div>
@@ -699,11 +705,12 @@ export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PRO
 
         {stage === "complete" && pdfUrl && (
           <div className="panel complete-panel">
-            <div className="success-mark" aria-hidden="true">✓</div><span className="step-kicker">PDF ready</span><h1>Send your license copy</h1><p>The PDF is ready on this device. LicenseSizer does not keep a copy.</p>
+            <div className="success-mark" aria-hidden="true">✓</div><span className="step-kicker">PDF ready</span><h1>Share your license copy</h1><p>The PDF is ready on this device. LicenseSizer does not keep a copy or send it for you.</p>
             <div className="file-card"><div className="pdf-badge">PDF</div><div><strong>{pdfFilename()}</strong><span>{options.pageSize === "letter" ? "US Letter" : "A4"} • True-size card placement</span></div></div>
             <div className="delivery-card"><div><span className="step-kicker">Delivery details</span><strong>{deliveryProfile.publicSlug ? deliveryProfile.destinationName : "Choose your recipient"}</strong></div><label>Email<input type="email" value={deliveryEmail} onChange={(event) => setDeliveryEmail(event.target.value)} placeholder="recipient@example.com" /></label><label>Mobile number<input type="tel" value={deliveryPhone} onChange={(event) => setDeliveryPhone(event.target.value)} placeholder="Optional" /></label>{(deliveryEmail || deliveryPhone) && <div className="destination-copy-actions">{deliveryEmail && <button className="text-button" type="button" onClick={() => void copyDestination(deliveryEmail, "Email address")}>Copy email</button>}{deliveryPhone && <button className="text-button" type="button" onClick={() => void copyDestination(deliveryPhone, "Mobile number")}>Copy mobile</button>}{copiedDestination && <span role="status">{copiedDestination}</span>}</div>}<label>Subject<input value={deliverySubject} onChange={(event) => setDeliverySubject(event.target.value)} /></label><label>Message<textarea rows={3} value={deliveryMessage} onChange={(event) => setDeliveryMessage(event.target.value)} /></label></div>
-            <div className="complete-actions">{canShare && <button className="primary large" onClick={sharePdf}>Send PDF <span aria-hidden="true">↗</span></button>}<a className={canShare ? "secondary download" : "primary large download"} href={pdfUrl} download={pdfFilename()} onClick={() => postActivity("pdf_downloaded", "download")}>Download PDF <span aria-hidden="true">↓</span></a></div>
-            {(deliveryEmail || deliveryPhone) && <div className="delivery-fallbacks">{deliveryEmail && <button className="text-button" onClick={openEmail}>Open email draft</button>}{deliveryPhone && <button className="text-button" onClick={openText}>Open text draft</button>}<p>Email and text links cannot attach local files automatically. Use <b>Send PDF</b> when available, or attach the downloaded PDF before sending.</p></div>}
+            <div className="handoff-explainer"><strong>You control the handoff.</strong><p>Your device will ask you to choose an app and recipient. Check that you selected the dealership shown above and finish sending in that app. LicenseSizer records only that a handoff option was opened—not a confirmed delivery.</p></div>
+            <div className="complete-actions">{canShare && <button className="primary large" onClick={sharePdf}>Open share sheet <span aria-hidden="true">↗</span></button>}<a className={canShare ? "secondary download" : "primary large download"} href={pdfUrl} download={pdfFilename()} onClick={() => postActivity("pdf_downloaded", "download")}>Download PDF <span aria-hidden="true">↓</span></a></div>
+            {(deliveryEmail || deliveryPhone) && <div className="delivery-fallbacks">{deliveryEmail && <button className="text-button" onClick={openEmail}>Open email draft</button>}{deliveryPhone && <button className="text-button" onClick={openText}>Open text draft</button>}<p>Email and text links cannot attach local files automatically. Use <b>Open share sheet</b> when available, or attach the downloaded PDF before sending.</p></div>}
             <div className="print-warning"><strong>Before printing:</strong> select Actual size / 100% and turn off Fit or Scale to page.</div>
             <button className="clear-button" onClick={startOver}>Start over & clear images</button>
           </div>
@@ -712,6 +719,7 @@ export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PRO
 
       <footer>
         <details><summary>Privacy details</summary><p>Photos are processed locally in volatile browser memory. They are not sent to LicenseSizer. Downloaded and shared files are controlled by your browser, device, and chosen destination. Starting over removes the app’s references to your session.</p></details>
+        <nav className="product-legal-links" aria-label="Legal and support"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a><a href="/support">Support</a></nav>
         <p>LicenseSizer creates a resized copy. It does not verify identity or document authenticity.</p>
       </footer>
     </main>

@@ -1,11 +1,25 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { getDealerProfile, saveDealerProfile } from "../../../../lib/dealer-data";
+import { createAvailablePublicSlug, getDealerProfile, saveDealerProfile } from "../../../../lib/dealer-data";
 import { DEFAULT_DELIVERY_PROFILE, type DealerDeliveryProfile } from "../../../../lib/dealer";
 
 export const dynamic = "force-dynamic";
 
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 56);
+}
+
+function externalUrl(value: string | undefined) {
+  const trimmed = value?.trim().slice(0, 500) || "";
+  if (!trimmed) return "";
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(candidate);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : "";
+  } catch { return ""; }
+}
+
+function color(value: string | undefined, fallback: string) {
+  return /^#[0-9a-f]{6}$/i.test(value || "") ? value! : fallback;
 }
 
 async function requireOrganization(requireAdmin: boolean) {
@@ -25,10 +39,11 @@ export async function GET() {
       if (access.session.orgRole !== "org:admin") return Response.json({ error: "An organization admin must finish dealership setup first." }, { status: 404 });
       const organization = await (await clerkClient()).organizations.getOrganization({ organizationId: access.organizationId });
       const baseSlug = slugify(organization.slug || organization.name) || "dealer";
+      const publicSlug = await createAvailablePublicSlug(baseSlug);
       profile = await saveDealerProfile(access.organizationId, {
         ...DEFAULT_DELIVERY_PROFILE,
         dealerName: organization.name,
-        publicSlug: `${baseSlug}-${access.organizationId.slice(-6).toLowerCase()}`,
+        publicSlug,
       });
     }
     return Response.json({ profile });
@@ -54,6 +69,18 @@ export async function PUT(request: Request) {
   const profile: DealerDeliveryProfile = {
     dealerName: body.dealerName?.trim().slice(0, 100) || "",
     publicSlug: slugify(body.publicSlug || ""),
+    publicAddress: body.publicAddress?.trim().slice(0, 300) || "",
+    publicPhone: body.publicPhone?.trim().slice(0, 40) || "",
+    publicEmail: body.publicEmail?.trim().toLowerCase().slice(0, 254) || "",
+    websiteUrl: externalUrl(body.websiteUrl),
+    facebookUrl: externalUrl(body.facebookUrl),
+    logoUrl: externalUrl(body.logoUrl),
+    landingHeadline: body.landingHeadline?.trim().slice(0, 140) || DEFAULT_DELIVERY_PROFILE.landingHeadline,
+    landingDescription: body.landingDescription?.trim().slice(0, 600) || DEFAULT_DELIVERY_PROFILE.landingDescription,
+    landingCta: body.landingCta?.trim().slice(0, 50) || DEFAULT_DELIVERY_PROFILE.landingCta,
+    landingTheme: body.landingTheme === "modern" || body.landingTheme === "minimal" ? body.landingTheme : "classic",
+    brandColor: color(body.brandColor, DEFAULT_DELIVERY_PROFILE.brandColor),
+    accentColor: color(body.accentColor, DEFAULT_DELIVERY_PROFILE.accentColor),
     destinationName: body.destinationName?.trim().slice(0, 100) || "Sales team",
     destinationEmail: body.destinationEmail?.trim().toLowerCase().slice(0, 254) || "",
     destinationPhone: body.destinationPhone?.trim().slice(0, 40) || "",

@@ -73,7 +73,11 @@ export async function detectDocumentWithOpenCv(
   hint?: [Point, Point, Point, Point],
 ): Promise<DetectionResult | null> {
   const candidates = await detectDocumentCandidatesWithOpenCv(canvas, hint);
-  return candidates.find((candidate) => candidate.detection.found)?.detection ?? candidates[0]?.detection ?? null;
+  return candidates
+    .filter((candidate) => candidate.detection.found)
+    .sort((first, second) => second.detection.confidence - first.detection.confidence)[0]?.detection
+    ?? candidates.sort((first, second) => second.detection.confidence - first.detection.confidence)[0]?.detection
+    ?? null;
 }
 
 export async function detectDocumentCandidatesWithOpenCv(

@@ -14,17 +14,27 @@ export async function POST(request: Request) {
   const organization = await (await clerkClient()).organizations.getOrganization({ organizationId: session.orgId });
   const customerId = existing?.stripeCustomerId || (await stripe.customers.create({ name: organization.name, metadata: { organizationId: session.orgId } })).id;
   if (!existing) await saveBillingSubscription({ organizationId: session.orgId, stripeCustomerId: customerId });
+  const openCheckouts = await stripe.checkout.sessions.list({ customer: customerId, status: "open", limit: 10 });
+  const currentCheckout = openCheckouts.data.find((session) => session.mode === "subscription" && session.url);
+  if (currentCheckout?.url) return Response.json({ url: currentCheckout.url });
   const origin = new URL(request.url).origin;
-  const trialDays = Math.max(0, Math.min(90, Number(process.env.STRIPE_TRIAL_DAYS || 14)));
+  const trialDays = existing?.stripeSubscriptionId ? 0 : Math.max(0, Math.min(90, Number(process.env.STRIPE_TRIAL_DAYS || 14)));
   const checkout = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
+    payment_method_collection: trialDays ? "if_required" : "always",
     line_items: [{ price: priceId, quantity: 1 }],
     allow_promotion_codes: true,
     billing_address_collection: "required",
     automatic_tax: { enabled: process.env.STRIPE_AUTOMATIC_TAX !== "false" },
     customer_update: { address: "auto", name: "auto" },
-    subscription_data: { metadata: { organizationId: session.orgId }, ...(trialDays ? { trial_period_days: trialDays } : {}) },
+    subscription_data: {
+      metadata: { organizationId: session.orgId },
+      ...(trialDays ? {
+        trial_period_days: trialDays,
+        trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+      } : {}),
+    },
     metadata: { organizationId: session.orgId },
     success_url: `${origin}/dashboard?checkout=success`,
     cancel_url: `${origin}/dashboard?checkout=cancelled`,

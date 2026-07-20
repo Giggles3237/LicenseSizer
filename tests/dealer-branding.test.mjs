@@ -1,0 +1,28 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+test("new dealership profiles use readable collision-aware public links", async () => {
+  const [route, data] = await Promise.all([
+    readFile(new URL("../app/api/admin/profile/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/dealer-data.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(route, /createAvailablePublicSlug\(baseSlug\)/);
+  assert.doesNotMatch(route, /organizationId\.slice/);
+  assert.match(data, /suffix === 1 \? preferredSlug : `\$\{preferredSlug\}-\$\{suffix\}`/);
+});
+
+test("dealership landing pages expose branding, contact details, and a separate scan route", async () => {
+  const [landing, scanner, editor] = await Promise.all([
+    readFile(new URL("../app/d/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/d/[slug]/scan/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/dashboard/landing-page-editor.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(landing, /profile\.landingHeadline/);
+  assert.match(landing, /profile\.publicAddress/);
+  assert.match(landing, /profile\.facebookUrl/);
+  assert.match(landing, /\/scan/);
+  assert.match(scanner, /LicenseSizerApp/);
+  for (const theme of ["Classic", "Modern", "Minimal"]) assert.match(editor, new RegExp(`>${theme}<`));
+  assert.match(editor, /Live preview/);
+});
