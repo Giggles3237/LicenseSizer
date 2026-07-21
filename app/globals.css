@@ -296,6 +296,11 @@ footer details p { max-width: 650px; margin: 10px auto; line-height: 1.6; }
 .form-grid.three { grid-template-columns: repeat(3, 1fr); }
 .input-prefix { position: absolute; z-index: 1; left: 12px; top: 36px; color: var(--muted); }
 .admin-form input.prefixed { padding-left: 33px; }
+.logo-upload-field { display: grid; gap: 8px; color: var(--navy); font-size: 12px; font-weight: 800; }
+.logo-upload-row { display: flex; flex-wrap: wrap; align-items: center; gap: 11px; }
+.logo-upload-button { position: relative; overflow: hidden; cursor: pointer; text-align: center; }
+.logo-upload-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.logo-upload-field small { color: var(--muted); font-size: 11px; font-weight: 650; line-height: 1.4; }
 .policy-fieldset { padding: 18px; border: 1px solid var(--line); border-radius: 11px; }
 .policy-fieldset legend { padding: 0 7px; }
 .policy-fieldset .form-grid + .form-grid { margin-top: 15px; }

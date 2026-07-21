@@ -25,7 +25,10 @@ test("dealership landing pages expose branding, contact details, and a separate 
   assert.match(landing, /dealer-visit-summary/);
   assert.match(landing, /\/scan/);
   assert.match(scanner, /LicenseResizerApp/);
-  assert.match(editor, /\/summit-logo\.png/);
+  assert.match(editor, /Choose logo/);
+  assert.match(editor, /image\/png,image\/jpeg,image\/webp/);
+  assert.match(editor, /180 KB/);
+  assert.doesNotMatch(editor, /Logo URL or asset path/);
   for (const theme of ["Classic", "Modern", "Minimal"]) assert.match(editor, new RegExp(`>${theme}<`));
   assert.match(editor, /Live preview/);
 });
@@ -38,4 +41,7 @@ test("Summit demo profile supports a bundled dealership logo", async () => {
   assert.match(dealer, /Summit Motor Group/);
   assert.match(dealer, /\/summit-logo\.png/);
   assert.match(route, /publicAssetOrExternalUrl\(body\.logoUrl\)/);
+  assert.match(route, /imageDataUrl/);
+  assert.match(route, /png\|jpeg\|webp/);
+  assert.match(route, /250_000/);
 });

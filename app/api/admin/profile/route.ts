@@ -18,7 +18,16 @@ function externalUrl(value: string | undefined) {
   } catch { return ""; }
 }
 
+function imageDataUrl(value: string | undefined) {
+  const trimmed = value?.trim() || "";
+  if (!trimmed.startsWith("data:image/")) return "";
+  if (trimmed.length > 250_000) return "";
+  return /^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(trimmed) ? trimmed : "";
+}
+
 function publicAssetOrExternalUrl(value: string | undefined) {
+  const uploadedLogo = imageDataUrl(value);
+  if (uploadedLogo) return uploadedLogo;
   const trimmed = value?.trim().slice(0, 500) || "";
   if (/^\/[a-z0-9/_\-.% ]+$/i.test(trimmed)) return trimmed;
   return externalUrl(trimmed);

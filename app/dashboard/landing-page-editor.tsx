@@ -1,6 +1,7 @@
 "use client";
 
-import type { CSSProperties, Dispatch, FormEventHandler, SetStateAction } from "react";
+import type { CSSProperties, ChangeEvent, Dispatch, FormEventHandler, SetStateAction } from "react";
+import { useState } from "react";
 import type { DealerDeliveryProfile } from "../../lib/dealer";
 
 type Props = {
@@ -11,8 +12,34 @@ type Props = {
 };
 
 export default function LandingPageEditor({ profile, setProfile, onSubmit, publicUrl }: Props) {
+  const [logoMessage, setLogoMessage] = useState("");
   const update = <Key extends keyof DealerDeliveryProfile>(key: Key, value: DealerDeliveryProfile[Key]) => {
     setProfile((current) => current ? { ...current, [key]: value } : current);
+  };
+  const uploadLogo = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setLogoMessage("Choose a PNG, JPG, or WebP logo.");
+      return;
+    }
+    if (file.size > 180_000) {
+      setLogoMessage("Choose a logo under 180 KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      if (!result.startsWith("data:image/")) {
+        setLogoMessage("That file could not be read as an image.");
+        return;
+      }
+      update("logoUrl", result);
+      setLogoMessage(`${file.name} is ready to save.`);
+    });
+    reader.addEventListener("error", () => setLogoMessage("That logo could not be uploaded."));
+    reader.readAsDataURL(file);
   };
   const colors = { "--dealer-brand": profile.brandColor, "--dealer-accent": profile.accentColor } as CSSProperties;
 
@@ -23,7 +50,14 @@ export default function LandingPageEditor({ profile, setProfile, onSubmit, publi
         <h3>Dealership identity</h3>
         <label>Dealership name<input value={profile.dealerName} onChange={(event) => update("dealerName", event.target.value)} required /></label>
         <label>Public link<span className="input-prefix">/d/</span><input className="prefixed" value={profile.publicSlug} onChange={(event) => update("publicSlug", event.target.value)} required /></label>
-        <label>Logo URL or asset path<input value={profile.logoUrl} onChange={(event) => update("logoUrl", event.target.value)} placeholder="/summit-logo.png or https://example.com/logo.png" /></label>
+        <div className="logo-upload-field">
+          <span>Dealership logo</span>
+          <div className="logo-upload-row">
+            <label className="secondary logo-upload-button">Choose logo<input type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadLogo} /></label>
+            {profile.logoUrl && <button className="text-button" type="button" onClick={() => { update("logoUrl", ""); setLogoMessage("Logo removed. Save to update the live page."); }}>Remove</button>}
+          </div>
+          <small>{logoMessage || "Upload a PNG, JPG, or WebP logo under 180 KB."}</small>
+        </div>
 
         <h3>Page content</h3>
         <label>Headline<input value={profile.landingHeadline} onChange={(event) => update("landingHeadline", event.target.value)} maxLength={140} /></label>
