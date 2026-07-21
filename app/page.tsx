@@ -9,7 +9,7 @@ export default function Home() {
       <section className="marketing-hero" id="top">
         <div className="hero-copy">
           <p className="marketing-kicker"><span /> Built for modern dealerships</p>
-          <h1>License collection,<br /><em>without the chase.</em></h1>
+          <h1>License collection,<br /><em>without the hassle.</em></h1>
           <p className="hero-lede">Give customers a branded link that turns a phone photo into a clean, correctly sized PDF—ready to send to your team in minutes.</p>
           <div className="hero-actions"><a className="primary marketing-primary" href="/dashboard">Start your free trial <span aria-hidden="true">→</span></a><a className="text-cta" href="/capture">Try the customer experience <span aria-hidden="true">↗</span></a></div>
           <div className="hero-proof" aria-label="Product benefits"><span><b>✓</b> No card required</span><span><b>✓</b> Setup in minutes</span><span><b>✓</b> Images never stored</span></div>
