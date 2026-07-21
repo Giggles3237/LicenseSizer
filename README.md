@@ -22,7 +22,7 @@ Dealer admins can also customize a public landing page with a readable dealershi
 - Next.js 16 deployed to Vercel
 - Clerk Organizations for authentication, invitations, admins, and members
 - Neon Postgres with Drizzle ORM for dealership profiles, activity events, and subscription entitlements
-- Stripe Checkout and Customer Portal for organization subscriptions
+- Stripe Checkout and Customer Portal for individual and dealer subscriptions
 - OpenCV.js and pdf-lib for on-device correction and exact PDF geometry
 
 ## Local setup
@@ -31,11 +31,13 @@ Requirements: Node.js 22.13 or newer.
 
 1. Copy `.env.example` to `.env.local` and add Clerk, Neon, and Stripe test credentials.
 2. In Clerk, enable Organizations and require organization membership for the dealer console.
-3. Create a recurring Stripe Price and set `STRIPE_PRICE_ID`.
+3. Create recurring Stripe Prices for the dealer plan and individual plan. Set `STRIPE_DEALER_PRICE_ID` and `STRIPE_INDIVIDUAL_PRICE_ID`; `STRIPE_PRICE_ID` remains supported as a legacy dealer-price fallback.
 4. Apply the database migration with `npm run db:migrate`.
 5. Start the application with `npm run dev`.
 
 For local Stripe webhook testing, forward events to `/api/webhooks/stripe` and place the signing secret in `STRIPE_WEBHOOK_SECRET`. Subscribe the production endpoint to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.paused`, and `customer.subscription.resumed`. In Stripe Billing settings, enable the customer trial-ending reminder email. First trials use Checkout without collecting payment details and cancel automatically if the trial ends without a payment method.
+
+The individual plan is capped at 100 PDFs per calendar month. Usage is counted from `pdf_created` activity events, checked before PDF generation, and reset at the start of each UTC month. Dealer plans default to unlimited monthly PDFs unless a limit is stored on the subscription.
 
 ## Validation
 

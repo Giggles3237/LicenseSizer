@@ -11,7 +11,12 @@ type Report = {
   summary: { sessions: number; pdfs: number; handoffActions: number; activeUsers: number };
   recent: Array<{ id: string; actorType: string; actorUserId: string | null; actorLabel?: string; eventType: string; deliveryChannel: string | null; createdAt: string }>;
 };
-type Billing = { configured: boolean; hasAccess: boolean; subscription: null | { status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } };
+type Billing = {
+  configured: boolean;
+  hasAccess: boolean;
+  usage: { allowed: boolean; used: number; limit: number | null; resetsAt: string };
+  subscription: null | { status: string; planType: "individual" | "dealer"; monthlyPdfLimit: number | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean };
+};
 type BillingSync = { hasAccess: boolean; subscription: Billing["subscription"] };
 
 async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
@@ -115,9 +120,9 @@ export default function DashboardClient({ canManage }: { canManage: boolean }) {
   };
 
   const publicUrl = profile && typeof window !== "undefined" ? `${window.location.origin}/d/${profile.publicSlug}` : "";
-  const openBilling = async (kind: "checkout" | "portal") => {
+  const openBilling = async (kind: "checkout" | "portal", planType: "individual" | "dealer" = "dealer") => {
     setStatus(kind === "checkout" ? "Opening secure checkout…" : "Opening billing portal…");
-    const response = await fetch(`/api/admin/billing/${kind}`, { method: "POST" });
+    const response = await fetch(`/api/admin/billing/${kind}`, { method: "POST", headers: { "content-type": "application/json" }, body: kind === "checkout" ? JSON.stringify({ planType }) : undefined });
     try {
       const payload = await readApiResponse<{ url: string }>(response, "Billing could not be opened.");
       window.location.href = payload.url;
@@ -147,6 +152,8 @@ export default function DashboardClient({ canManage }: { canManage: boolean }) {
   const trialReady = Boolean(billing?.hasAccess);
   const canStartTrial = !billing?.subscription;
   const billingNeedsNewCheckout = !billing?.subscription || billing.subscription.status === "canceled" || billing.subscription.status === "incomplete_expired";
+  const usageLimit = billing?.usage.limit;
+  const usageCopy = usageLimit === null || usageLimit === undefined ? "Unlimited PDFs this month" : `${billing?.usage.used ?? 0}/${usageLimit} PDFs this month`;
   const launchProgress = [pageReady, destinationReady, capturePolicyReady, trialReady, testOpened, teamReviewed, linkCopied].filter(Boolean).length;
 
   return <div className="admin-layout">
@@ -159,7 +166,7 @@ export default function DashboardClient({ canManage }: { canManage: boolean }) {
             <li className={pageReady ? "complete" : ""}><span>{pageReady ? "✓" : "1"}</span><div><strong>Confirm dealership page</strong><small>Name, public link, and customer-facing message</small></div><button className="text-button" onClick={() => setTab("landing")}>{pageReady ? "Review" : "Set up"}</button></li>
             <li className={destinationReady ? "complete" : ""}><span>{destinationReady ? "✓" : "2"}</span><div><strong>Add a handoff destination</strong><small>Email or mobile number customers can verify before sharing</small></div><button className="text-button" onClick={() => setTab("delivery")}>{destinationReady ? "Review" : "Add"}</button></li>
             <li className={capturePolicyReady ? "complete" : ""}><span>{capturePolicyReady ? "✓" : "3"}</span><div><strong>Review capture rules</strong><small>License sides, paper size, layout, detail, and labels</small></div><button className="text-button" onClick={() => setTab("delivery")}>Review</button></li>
-            <li className={trialReady ? "complete" : ""}><span>{trialReady ? "✓" : "4"}</span><div><strong>{canStartTrial ? "Activate the free trial" : "Activate your plan"}</strong><small>{canStartTrial ? "14 days free; payment details are not required to begin" : "Choose a paid plan to reactivate the customer link"}</small></div><button className="text-button" disabled={!billing?.configured} onClick={() => trialReady ? setTab("billing") : void openBilling("checkout")}>{trialReady ? "Manage" : canStartTrial ? "Start trial" : "Choose plan"}</button></li>
+            <li className={trialReady ? "complete" : ""}><span>{trialReady ? "✓" : "4"}</span><div><strong>{canStartTrial ? "Activate the free trial" : "Activate your plan"}</strong><small>{canStartTrial ? "14 days free; payment details are not required to begin" : "Choose a paid plan to reactivate the customer link"}</small></div><button className="text-button" disabled={!billing?.configured} onClick={() => trialReady ? setTab("billing") : void openBilling("checkout", "dealer")}>{trialReady ? "Manage" : canStartTrial ? "Start trial" : "Choose plan"}</button></li>
             <li className={testOpened ? "complete" : ""}><span>{testOpened ? "✓" : "5"}</span><div><strong>Test the customer flow</strong><small>Open the branded customer page, then complete a practice handoff</small></div><button className="text-button" disabled={!trialReady || !publicUrl} onClick={openTestScan}>{testOpened ? "Open again" : "Open test"}</button></li>
             <li className={teamReviewed ? "complete" : ""}><span>{teamReviewed ? "✓" : "6"}</span><div><strong>Invite or review your team</strong><small>Give each employee their own account and the minimum role they need</small></div><button className="text-button" onClick={() => { setTeamReviewed(true); setTab("team"); }}>{teamReviewed ? "Review again" : "Open team"}</button></li>
             <li className={linkCopied ? "complete" : ""}><span>{linkCopied ? "✓" : "7"}</span><div><strong>Share the customer link</strong><small>Paste it into your CRM, email, or text workflow</small></div><button className="text-button" disabled={!trialReady || !publicUrl} onClick={() => void copyPublicLink()}>{linkCopied ? "Copy again" : "Copy link"}</button></li>
@@ -178,7 +185,7 @@ export default function DashboardClient({ canManage }: { canManage: boolean }) {
         <div className="form-actions"><button className="primary" type="submit">Save handoff setup</button>{publicUrl && <a className="secondary" href={publicUrl} target="_blank" rel="noreferrer">Preview customer link</a>}</div>
       </form></>}
       {tab === "team" && <><div className="admin-heading"><div><span className="step-kicker">Access control</span><h2>Admins & users</h2><p>Invite dealership staff and assign organization roles.</p></div></div><div className="clerk-panel"><OrganizationProfile routing="hash" /></div></>}
-      {tab === "billing" && canManage && <><div className="admin-heading"><div><span className="step-kicker">Subscription</span><h2>Plan & billing</h2><p>LicenseResizer is billed once per dealership organization.</p></div></div><div className="admin-card billing-card"><div className={`billing-status ${billing?.hasAccess ? "active" : ""}`}><span /><div><strong>{billing?.subscription?.status ? billing.subscription.status.replace("_", " ") : "No active plan"}</strong><p>{billing?.subscription?.currentPeriodEnd ? `Current period ends ${new Date(billing.subscription.currentPeriodEnd).toLocaleDateString()}.` : "Start a subscription to activate your customer link."}</p></div></div>{!billing?.configured ? <div className="notice">Add the Stripe values from <code>.env.example</code> to enable checkout.</div> : billingNeedsNewCheckout ? <button className="primary" onClick={() => void openBilling("checkout")}>{canStartTrial ? "Start free trial — no card required" : "Choose a plan"}</button> : <button className="primary" onClick={() => void openBilling("portal")}>Manage billing</button>}<p className="billing-note">A first trial starts without payment details and cancels if no payment method is added before it ends. Payments, invoices, and card details are handled securely by Stripe; LicenseResizer never receives card numbers.</p></div></>}
+      {tab === "billing" && canManage && <><div className="admin-heading"><div><span className="step-kicker">Subscription</span><h2>Plan & billing</h2><p>Choose an individual workspace or a dealership plan. Monthly PDF limits reset automatically.</p></div></div><div className="admin-card billing-card"><div className={`billing-status ${billing?.hasAccess ? "active" : ""}`}><span /><div><strong>{billing?.subscription?.status ? `${billing.subscription.planType} - ${billing.subscription.status.replace("_", " ")}` : "No active plan"}</strong><p>{billing?.subscription?.currentPeriodEnd ? `Current period ends ${new Date(billing.subscription.currentPeriodEnd).toLocaleDateString()}. ${usageCopy}.` : "Start a subscription to activate your customer link."}</p></div></div>{!billing?.configured ? <div className="notice">Add Stripe price values from <code>.env.example</code> to enable checkout.</div> : billingNeedsNewCheckout ? <div className="plan-choice-grid"><article><span className="step-kicker">Individual</span><h3>100 PDFs/month</h3><p>For one person who needs true-size license PDFs without dealership team features.</p><button className="primary" onClick={() => void openBilling("checkout", "individual")}>{canStartTrial ? "Start individual trial" : "Choose individual"}</button></article><article><span className="step-kicker">Dealership</span><h3>Dealer workspace</h3><p>For branded customer links, team access, handoff destinations, and higher-volume operations.</p><button className="secondary" onClick={() => void openBilling("checkout", "dealer")}>{canStartTrial ? "Start dealer trial" : "Choose dealer"}</button></article></div> : <button className="primary" onClick={() => void openBilling("portal")}>Manage billing</button>}<p className="billing-note">A first trial starts without payment details and cancels if no payment method is added before it ends. Payments, invoices, and card details are handled securely by Stripe; LicenseResizer never receives card numbers.</p></div></>}
     </section>
   </div>;
 }

@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { ACTIVITY_EVENT_TYPES } from "../../../lib/dealer";
 import { getDealerProfile, getPublicDealerProfile, recordActivity } from "../../../lib/dealer-data";
+import { getMonthlyPdfUsage } from "../../../lib/usage";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,10 @@ export async function POST(request: Request) {
   if (organizationId && !(await getDealerProfile(organizationId))) organizationId = null;
   if (!organizationId && body.publicSlug) organizationId = (await getPublicDealerProfile(body.publicSlug))?.organizationId ?? null;
   if (!organizationId) return new Response(null, { status: 204 });
+  if (body.eventType === "pdf_created") {
+    const usage = await getMonthlyPdfUsage(organizationId);
+    if (!usage.allowed) return Response.json({ error: "This plan has reached its monthly PDF limit.", usage }, { status: 402 });
+  }
   const deliveryChannel = body.deliveryChannel && channels.has(body.deliveryChannel) ? body.deliveryChannel : null;
   await recordActivity({
     organizationId,

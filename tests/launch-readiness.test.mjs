@@ -3,20 +3,48 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("card-free trials cancel safely and reuse an open checkout", async () => {
-  const [checkout, dashboard, sync] = await Promise.all([
+  const [checkout, dashboard, sync, billing, envExample] = await Promise.all([
     readFile(new URL("../app/api/admin/billing/checkout/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/dashboard/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/billing/sync/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/billing.ts", import.meta.url), "utf8"),
+    readFile(new URL("../.env.example", import.meta.url), "utf8"),
   ]);
   assert.match(checkout, /payment_method_collection: trialDays \? "if_required" : "always"/);
   assert.match(checkout, /missing_payment_method: "cancel"/);
   assert.match(checkout, /checkout\.sessions\.list\(\{ customer: customerId, status: "open"/);
+  assert.match(checkout, /planType === "individual"/);
+  assert.match(checkout, /priceIdForPlan\(planType\)/);
   assert.match(checkout, /success_url\?\.includes\("session_id=\{CHECKOUT_SESSION_ID\}"\)/);
   assert.match(checkout, /session_id=\{CHECKOUT_SESSION_ID\}/);
+  assert.match(dashboard, /100 PDFs\/month/);
+  assert.match(dashboard, /openBilling\("checkout", "individual"\)/);
   assert.match(dashboard, /checkout"\) !== "success"/);
   assert.match(dashboard, /\/api\/admin\/billing\/sync/);
   assert.match(sync, /checkout\.sessions\.retrieve\(sessionId\)/);
   assert.match(sync, /syncStripeSubscription/);
+  assert.match(billing, /INDIVIDUAL_MONTHLY_PDF_LIMIT = 100/);
+  assert.match(envExample, /STRIPE_INDIVIDUAL_PRICE_ID/);
+});
+
+test("individual plans enforce a monthly PDF quota before generation", async () => {
+  const [scanner, activity, quota, usage, schema, migration] = await Promise.all([
+    readFile(new URL("../app/license-resizer-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/activity/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/activity/quota/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/usage.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0003_clear_gorgon.sql", import.meta.url), "utf8"),
+  ]);
+  assert.match(scanner, /checkPdfQuota/);
+  assert.match(scanner, /\/api\/activity\/quota/);
+  assert.match(scanner, /await checkPdfQuota\(\)/);
+  assert.match(activity, /eventType === "pdf_created"/);
+  assert.match(activity, /status: 402/);
+  assert.match(quota, /getMonthlyPdfUsage/);
+  assert.match(usage, /used < limit/);
+  assert.match(schema, /monthlyPdfLimit/);
+  assert.match(migration, /monthly_pdf_limit/);
 });
 
 test("product copy distinguishes handoff actions from confirmed delivery", async () => {

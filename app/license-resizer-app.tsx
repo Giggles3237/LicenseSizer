@@ -18,6 +18,7 @@ type CapturedSide = {
   correctedUrl: string;
   corners: [Point, Point, Point, Point];
 };
+type PdfQuota = { allowed: boolean; used: number; limit: number | null; resetsAt: string | null };
 
 const sideLabel = (side: Side) => (side === "front" ? "front" : "back");
 const LINE_NAMES = ["Top", "Right", "Bottom", "Left"] as const;
@@ -148,12 +149,23 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   }, []);
 
   const postActivity = useCallback((eventType: ActivityEventType, deliveryChannel?: string) => {
-    void fetch("/api/activity", {
+    return fetch("/api/activity", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ publicSlug: deliveryProfile.publicSlug, eventType, deliveryChannel }),
       keepalive: true,
     }).catch(() => undefined);
+  }, [deliveryProfile.publicSlug]);
+
+  const checkPdfQuota = useCallback(async () => {
+    const response = await fetch("/api/activity/quota", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ publicSlug: deliveryProfile.publicSlug }),
+    });
+    if (!response.ok) throw new Error("Usage could not be checked. Please try again.");
+    const quota = await response.json() as PdfQuota;
+    if (!quota.allowed) throw new Error(`This plan has reached its ${quota.limit} PDF monthly limit. It resets ${quota.resetsAt ? new Date(quota.resetsAt).toLocaleDateString() : "next month"}.`);
   }, [deliveryProfile.publicSlug]);
 
   const releaseAnalysisView = useCallback(() => {
@@ -179,7 +191,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   }, [draftUrl, releaseAnalysisView]);
 
   const startOver = useCallback(() => {
-    postActivity("session_cleared");
+    void postActivity("session_cleared");
     stopCamera();
     clearDraft();
     if (front) {
@@ -459,11 +471,11 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
       if (activeSide === "front") {
         if (front) { URL.revokeObjectURL(front.sourceUrl); URL.revokeObjectURL(front.correctedUrl); }
         setFront(item);
-        postActivity("front_captured");
+        void postActivity("front_captured");
       } else {
         if (back) { URL.revokeObjectURL(back.sourceUrl); URL.revokeObjectURL(back.correctedUrl); }
         setBack(item);
-        postActivity("back_captured");
+        void postActivity("back_captured");
       }
       releaseAnalysisView();
       setDevelopmentOpen(false);
@@ -503,7 +515,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     setActiveSide(side);
     setMessage("");
     setStage("capture");
-    if (side === "front" && !front) postActivity("session_started");
+    if (side === "front" && !front) void postActivity("session_started");
   };
 
   const generatePdf = async () => {
@@ -511,13 +523,15 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     setBusy(true);
     setMessage("Preparing your true-size PDF…");
     try {
+      await checkPdfQuota();
       const { composePdf } = await import("../lib/pdf");
       const pdf = await composePdf(front.corrected, back?.corrected ?? null, options);
+      const activityResponse = await postActivity("pdf_created");
+      if (activityResponse && !activityResponse.ok) throw new Error("This plan has reached its monthly PDF limit.");
       if (pdfUrl) URL.revokeObjectURL(pdfUrl);
       setPdfBlob(pdf);
       setPdfUrl(URL.createObjectURL(pdf));
       setStage("complete");
-      postActivity("pdf_created");
       setMessage("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The PDF could not be created.");
@@ -533,7 +547,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     try {
       const destination = deliveryEmail ? `\n\nRequested destination: ${deliveryEmail}` : "";
       await navigator.share({ files: [file], title: deliverySubject, text: `${deliveryMessage}${destination}` });
-      postActivity("share_opened", "native-share");
+      void postActivity("share_opened", "native-share");
       setMessage("The share sheet was opened. Confirm the correct app and recipient before sending; LicenseResizer cannot verify delivery.");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
