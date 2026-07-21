@@ -10,15 +10,19 @@ test("card-free trials cancel safely and reuse an open checkout", async () => {
 });
 
 test("product copy distinguishes handoff actions from confirmed delivery", async () => {
-  const [scanner, dashboard, data, marketing] = await Promise.all([
+  const [scanner, dashboard, data, marketing, support] = await Promise.all([
     readFile(new URL("../app/license-resizer-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/dashboard/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/dealer-data.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/support/page.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(scanner, /LicenseResizer records only that a handoff option was opened—not a confirmed delivery/);
+  assert.match(scanner, /Copy the destination if needed, then share the attached PDF/);
   assert.match(scanner, /Open share sheet/);
+  assert.doesNotMatch(scanner, /Open email draft|Open text draft|Before printing|You control the handoff/);
   assert.match(dashboard, /cannot confirm that a customer sent the file or that your team received it/);
+  assert.match(support, /cannot confirm delivery/);
+  assert.match(support, /Actual size or 100%/);
   assert.match(data, /handoffActions/);
   assert.doesNotMatch(marketing, /PDF delivered|Delivery opened|Your team receives/);
 });

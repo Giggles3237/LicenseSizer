@@ -53,7 +53,7 @@ export default async function DealerCapturePage({ params }: { params: Promise<{ 
     <section className="dealer-reassurance-section" aria-label="Privacy and sizing details">
       <article><span className="dealer-shield" aria-hidden="true">OK</span><h2>Your license stays private.</h2><p>Photos and PDFs are processed in this browser. LicenseResizer does not store your license image or document.</p></article>
       <article><span className="dealer-shield" aria-hidden="true">1:1</span><h2>True-size PDF output.</h2><p>The final PDF places the license at nominal ID-1 size so the dealership gets a clean copy for its workflow.</p></article>
-      <article><span className="dealer-shield" aria-hidden="true">You</span><h2>You control the handoff.</h2><p>Your device opens the sharing option. You choose the app, verify the recipient, and finish sending.</p></article>
+      <article><span className="dealer-shield" aria-hidden="true">You</span><h2>You choose where it goes.</h2><p>Your device opens the sharing option. Choose the app, verify the recipient, and send the attached PDF.</p></article>
     </section>
 
     {(profile.publicAddress || profile.publicPhone || profile.publicEmail || profile.websiteUrl || profile.facebookUrl) && <section className="dealer-contact-section"><div><span className="dealer-eyebrow">Contact us</span><h2>{profile.dealerName}</h2></div><address>

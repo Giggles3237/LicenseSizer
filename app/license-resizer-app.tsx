@@ -122,10 +122,10 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     cropMarks: deliveryProfile.cropMarks,
     quality: deliveryProfile.quality,
   });
-  const [deliveryEmail, setDeliveryEmail] = useState(deliveryProfile.destinationEmail);
-  const [deliveryPhone, setDeliveryPhone] = useState(deliveryProfile.destinationPhone);
-  const [deliverySubject, setDeliverySubject] = useState(deliveryProfile.messageSubject);
-  const [deliveryMessage, setDeliveryMessage] = useState(deliveryProfile.messageBody);
+  const [deliveryEmail] = useState(deliveryProfile.destinationEmail);
+  const [deliveryPhone] = useState(deliveryProfile.destinationPhone);
+  const [deliverySubject] = useState(deliveryProfile.messageSubject);
+  const [deliveryMessage] = useState(deliveryProfile.messageBody);
   const [copiedDestination, setCopiedDestination] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const guideRef = useRef<HTMLDivElement>(null);
@@ -541,20 +541,8 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     }
   };
 
-  const openEmail = () => {
-    const note = canShare ? deliveryMessage : `${deliveryMessage}\n\nPlease attach the downloaded ${pdfFilename()} file before sending.`;
-    postActivity("email_opened", "email");
-    window.location.href = `mailto:${encodeURIComponent(deliveryEmail)}?subject=${encodeURIComponent(deliverySubject)}&body=${encodeURIComponent(note)}`;
-  };
-
-  const openText = () => {
-    const note = `${deliveryMessage}\n\nAttach ${pdfFilename()} from your downloads before sending.`;
-    postActivity("text_opened", "text");
-    window.location.href = `sms:${deliveryPhone}?body=${encodeURIComponent(note)}`;
-  };
-
   const copyDestination = async (value: string, label: string) => {
-    try { await navigator.clipboard.writeText(value); setCopiedDestination(`${label} copied`); }
+    try { await navigator.clipboard.writeText(value); setCopiedDestination(`${label} copied.`); }
     catch { setCopiedDestination(`Copy ${value} before opening the share sheet.`); }
   };
 
@@ -567,6 +555,8 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   });
   const selectedCandidate = cropCandidates[candidateIndex] ?? null;
   const activeItem = activeSide === "front" ? front : back;
+  const primaryDestination = deliveryEmail || deliveryPhone;
+  const primaryDestinationLabel = deliveryEmail ? "Email" : "Mobile number";
 
   return (
     <main className="app-shell">
@@ -711,13 +701,10 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
 
         {stage === "complete" && pdfUrl && (
           <div className="panel complete-panel">
-            <div className="success-mark" aria-hidden="true">✓</div><span className="step-kicker">Ready to share</span><h1>Your PDF is prepared</h1><p>Your true-size copy is ready on this device. Review the destination below, then choose how you’d like to share it.</p>
-            <div className="file-card"><div className="pdf-badge">PDF</div><div><strong>{pdfFilename()}</strong><span>{options.pageSize === "letter" ? "US Letter" : "A4"} • True-size card placement</span></div></div>
-            <div className="delivery-card"><div><span className="step-kicker">Delivery details</span><strong>{deliveryProfile.publicSlug ? deliveryProfile.destinationName : "Choose your recipient"}</strong></div><label>Email<input type="email" value={deliveryEmail} onChange={(event) => setDeliveryEmail(event.target.value)} placeholder="recipient@example.com" /></label><label>Mobile number<input type="tel" value={deliveryPhone} onChange={(event) => setDeliveryPhone(event.target.value)} placeholder="Optional" /></label>{(deliveryEmail || deliveryPhone) && <div className="destination-copy-actions">{deliveryEmail && <button className="text-button" type="button" onClick={() => void copyDestination(deliveryEmail, "Email address")}>Copy email</button>}{deliveryPhone && <button className="text-button" type="button" onClick={() => void copyDestination(deliveryPhone, "Mobile number")}>Copy mobile</button>}{copiedDestination && <span role="status">{copiedDestination}</span>}</div>}<label>Subject<input value={deliverySubject} onChange={(event) => setDeliverySubject(event.target.value)} /></label><label>Message<textarea rows={3} value={deliveryMessage} onChange={(event) => setDeliveryMessage(event.target.value)} /></label></div>
-            <div className="handoff-explainer"><strong>You control the handoff.</strong><p>Your device will ask you to choose an app and recipient. Check that you selected the dealership shown above and finish sending in that app. LicenseResizer records only that a handoff option was opened—not a confirmed delivery.</p></div>
+            <div className="success-mark" aria-hidden="true">OK</div><span className="step-kicker">Ready to share</span><h1>Your PDF is prepared</h1><p>Your true-size copy is ready on this device. Copy the destination if needed, then share the attached PDF.</p>
+            <div className="file-card"><div className="pdf-badge">PDF</div><div><strong>{pdfFilename()}</strong><span>{options.pageSize === "letter" ? "US Letter" : "A4"} - True-size card placement</span></div></div>
+            <div className="delivery-card simplified"><div><span className="step-kicker">Send to</span><strong>{deliveryProfile.publicSlug ? deliveryProfile.destinationName : "Your recipient"}</strong></div>{primaryDestination && <div className="destination-value"><span>{primaryDestinationLabel}</span><code>{primaryDestination}</code><button className="text-button" type="button" onClick={() => void copyDestination(primaryDestination, primaryDestinationLabel)}>Copy destination</button></div>}{copiedDestination && <span className="copy-status" role="status">{copiedDestination}</span>}</div>
             <div className="complete-actions">{canShare && <button className="primary large" onClick={sharePdf}>Open share sheet <span aria-hidden="true">↗</span></button>}<a className={canShare ? "secondary download" : "primary large download"} href={pdfUrl} download={pdfFilename()} onClick={() => postActivity("pdf_downloaded", "download")}>Download PDF <span aria-hidden="true">↓</span></a></div>
-            {(deliveryEmail || deliveryPhone) && <div className="delivery-fallbacks">{deliveryEmail && <button className="text-button" onClick={openEmail}>Open email draft</button>}{deliveryPhone && <button className="text-button" onClick={openText}>Open text draft</button>}<p>Email and text links cannot attach local files automatically. Use <b>Open share sheet</b> when available, or attach the downloaded PDF before sending.</p></div>}
-            <div className="print-warning"><strong>Before printing:</strong> select Actual size / 100% and turn off Fit or Scale to page.</div>
             <button className="clear-button" onClick={startOver}>Start over & clear images</button>
           </div>
         )}
