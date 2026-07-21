@@ -47,6 +47,19 @@ test("individual plans enforce a monthly PDF quota before generation", async () 
   assert.match(migration, /monthly_pdf_limit/);
 });
 
+test("Microsoft publisher verification file is served without auth middleware", async () => {
+  const [route, proxy, file] = await Promise.all([
+    readFile(new URL("../app/.well-known/microsoft-identity-association.json/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
+    readFile(new URL("../public/.well-known/microsoft-identity-association.json", import.meta.url), "utf8"),
+  ]);
+  assert.match(route, /4e101a78-1afe-474c-b27c-c1d78fdd40d6/);
+  assert.match(route, /Response\.json/);
+  assert.match(proxy, /\\\.well-known/);
+  assert.match(proxy, /json/);
+  assert.match(file, /associatedApplications/);
+});
+
 test("product copy distinguishes handoff actions from confirmed delivery", async () => {
   const [scanner, dashboard, data, marketing, support] = await Promise.all([
     readFile(new URL("../app/license-resizer-app.tsx", import.meta.url), "utf8"),
