@@ -38,6 +38,9 @@ button { color: inherit; }
 .privacy-pill { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #cbe2dc; border-radius: 999px; background: rgba(255,255,255,.72); color: #3c625b; font-size: 12px; font-weight: 700; }
 .privacy-pill span { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 4px rgba(22,139,121,.12); }
 .header-actions, .admin-account { display: flex; align-items: center; gap: 13px; }
+.signed-in-as { min-width: 0; display: grid; justify-items: end; line-height: 1.15; }
+.signed-in-as small { color: #7a898d; font-size: 9px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.signed-in-as strong { max-width: 220px; overflow: hidden; color: var(--navy); font-size: 12px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
 .dealer-cta { max-width: 760px; display: flex; align-items: center; justify-content: space-between; gap: 25px; margin: 24px auto 0; padding: 18px 20px; border: 1px solid #cbdeda; border-radius: 13px; background: rgba(255,255,255,.74); text-align: left; }
 .dealer-cta strong { display: block; margin-top: 4px; color: var(--navy); font-size: 14px; }
 .dealer-cta p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
@@ -352,6 +355,7 @@ footer details p { max-width: 650px; margin: 10px auto; line-height: 1.6; }
   .delivery-card { grid-template-columns: 1fr; }
   .delivery-card > * { grid-column: 1 !important; }
   .admin-topbar { padding: 0 16px; }
+  .signed-in-as { display: none; }
   .admin-layout { display: block; }
   .admin-sidebar { padding: 20px; border-right: 0; border-bottom: 1px solid var(--line); }
   .admin-sidebar nav { grid-template-columns: repeat(2, 1fr); margin: 20px 0 0; }

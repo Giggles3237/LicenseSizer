@@ -12,6 +12,7 @@ type Report = {
   recent: Array<{ id: string; actorType: string; actorUserId: string | null; actorLabel?: string; eventType: string; deliveryChannel: string | null; createdAt: string }>;
 };
 type Billing = { configured: boolean; hasAccess: boolean; subscription: null | { status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } };
+type BillingSync = { hasAccess: boolean; subscription: Billing["subscription"] };
 
 async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
   const contentType = response.headers.get("content-type") || "";
@@ -51,6 +52,7 @@ export default function DashboardClient({ canManage }: { canManage: boolean }) {
   const [testOpened, setTestOpened] = useState(false);
   const [teamReviewed, setTeamReviewed] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [checkoutSynced, setCheckoutSynced] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -72,6 +74,31 @@ export default function DashboardClient({ canManage }: { canManage: boolean }) {
   // The async load synchronizes this client view with the organization APIs.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!canManage || checkoutSynced || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") !== "success") return;
+    const sessionId = params.get("session_id");
+    if (!sessionId) {
+      setStatus("Trial checkout returned without a session id. Refresh once Stripe finishes updating the subscription.");
+      setCheckoutSynced(true);
+      return;
+    }
+    setCheckoutSynced(true);
+    setStatus("Activating your trial…");
+    void fetch("/api/admin/billing/sync", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    }).then((response) => readApiResponse<BillingSync>(response, "Trial could not be activated. Please refresh or check billing."))
+      .then((payload) => {
+        setBilling((current) => current ? { ...current, hasAccess: payload.hasAccess, subscription: payload.subscription } : current);
+        window.history.replaceState(null, "", window.location.pathname);
+        void load().then(() => setStatus(payload.hasAccess ? "Trial activated." : "Stripe returned checkout, but the subscription is not active yet. Refresh in a moment."));
+      })
+      .catch((error) => setStatus(error instanceof Error ? error.message : "Trial could not be activated. Please refresh or check billing."));
+  }, [canManage, checkoutSynced, load]);
 
   const saveProfile = async (event: FormEvent) => {
     event.preventDefault();

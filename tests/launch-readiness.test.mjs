@@ -3,10 +3,20 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("card-free trials cancel safely and reuse an open checkout", async () => {
-  const checkout = await readFile(new URL("../app/api/admin/billing/checkout/route.ts", import.meta.url), "utf8");
+  const [checkout, dashboard, sync] = await Promise.all([
+    readFile(new URL("../app/api/admin/billing/checkout/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/dashboard/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/billing/sync/route.ts", import.meta.url), "utf8"),
+  ]);
   assert.match(checkout, /payment_method_collection: trialDays \? "if_required" : "always"/);
   assert.match(checkout, /missing_payment_method: "cancel"/);
   assert.match(checkout, /checkout\.sessions\.list\(\{ customer: customerId, status: "open"/);
+  assert.match(checkout, /success_url\?\.includes\("session_id=\{CHECKOUT_SESSION_ID\}"\)/);
+  assert.match(checkout, /session_id=\{CHECKOUT_SESSION_ID\}/);
+  assert.match(dashboard, /checkout"\) !== "success"/);
+  assert.match(dashboard, /\/api\/admin\/billing\/sync/);
+  assert.match(sync, /checkout\.sessions\.retrieve\(sessionId\)/);
+  assert.match(sync, /syncStripeSubscription/);
 });
 
 test("product copy distinguishes handoff actions from confirmed delivery", async () => {
@@ -30,8 +40,9 @@ test("product copy distinguishes handoff actions from confirmed delivery", async
 });
 
 test("trust center and guided launch checklist are present", async () => {
-  const [dashboard, privacy, terms, security, subprocessors, support] = await Promise.all([
+  const [dashboard, dashboardPage, privacy, terms, security, subprocessors, support] = await Promise.all([
     readFile(new URL("../app/dashboard/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/privacy/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/terms/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/security/page.tsx", import.meta.url), "utf8"),
@@ -39,6 +50,8 @@ test("trust center and guided launch checklist are present", async () => {
     readFile(new URL("../app/support/page.tsx", import.meta.url), "utf8"),
   ]);
   for (const step of ["Confirm dealership page", "Add a handoff destination", "Review capture rules", "Activate the free trial", "Test the customer flow", "Invite or review your team", "Share the customer link"]) assert.match(dashboard, new RegExp(step));
+  assert.match(dashboardPage, /signed-in-as/);
+  assert.match(dashboardPage, /Signed in as/);
   assert.match(privacy, /does not provide an image or PDF upload endpoint/);
   assert.match(terms, /No verification or confirmed delivery/);
   assert.match(security, /Data boundary/);

@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { CreateOrganization, OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import DashboardClient from "./dashboard-client";
@@ -14,8 +14,10 @@ export default async function DashboardPage() {
   if (!session.orgId) {
     return <main className="admin-shell"><section className="admin-empty"><span className="step-kicker">LicenseResizer for dealerships</span><h1>Create your organization</h1><p>Your organization keeps dealership settings, team access, and reporting separate from every other LicenseResizer customer.</p><CreateOrganization afterCreateOrganizationUrl="/dashboard" /></section></main>;
   }
+  const user = await currentUser();
+  const userLabel = user?.fullName || user?.primaryEmailAddress?.emailAddress || "Account";
   return <main className="admin-shell">
-    <header className="admin-topbar"><Link className="brand" href="/"><span className="brand-mark" aria-hidden="true"><i /></span><span>License<span>Resizer</span></span></Link><div className="admin-account"><OrganizationSwitcher afterSelectOrganizationUrl="/dashboard" /><UserButton /></div></header>
+    <header className="admin-topbar"><Link className="brand" href="/"><span className="brand-mark" aria-hidden="true"><i /></span><span>License<span>Resizer</span></span></Link><div className="admin-account"><span className="signed-in-as"><small>Signed in as</small><strong>{userLabel}</strong></span><OrganizationSwitcher afterSelectOrganizationUrl="/dashboard" /><UserButton /></div></header>
     <DashboardClient canManage={session.orgRole === "org:admin"} />
   </main>;
 }

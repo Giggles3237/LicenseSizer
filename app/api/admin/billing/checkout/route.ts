@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const customerId = existing?.stripeCustomerId || (await stripe.customers.create({ name: organization.name, metadata: { organizationId: session.orgId } })).id;
   if (!existing) await saveBillingSubscription({ organizationId: session.orgId, stripeCustomerId: customerId });
   const openCheckouts = await stripe.checkout.sessions.list({ customer: customerId, status: "open", limit: 10 });
-  const currentCheckout = openCheckouts.data.find((session) => session.mode === "subscription" && session.url);
+  const currentCheckout = openCheckouts.data.find((session) => session.mode === "subscription" && session.url && session.success_url?.includes("session_id={CHECKOUT_SESSION_ID}"));
   if (currentCheckout?.url) return Response.json({ url: currentCheckout.url });
   const origin = new URL(request.url).origin;
   const trialDays = existing?.stripeSubscriptionId ? 0 : Math.max(0, Math.min(90, Number(process.env.STRIPE_TRIAL_DAYS || 14)));
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       } : {}),
     },
     metadata: { organizationId: session.orgId },
-    success_url: `${origin}/dashboard?checkout=success`,
+    success_url: `${origin}/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/dashboard?checkout=cancelled`,
   });
   return Response.json({ url: checkout.url });
