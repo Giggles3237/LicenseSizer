@@ -20,7 +20,7 @@ test("product copy distinguishes handoff actions from confirmed delivery", async
   assert.match(scanner, /Copy a destination if needed, then share the attached PDF/);
   assert.match(scanner, /<span>Email<\/span>/);
   assert.match(scanner, /<span>Text<\/span>/);
-  assert.match(scanner, /Open share sheet/);
+  assert.match(scanner, /Share <span/);
   assert.doesNotMatch(scanner, /Open email draft|Open text draft|Before printing|You control the handoff/);
   assert.match(dashboard, /cannot confirm that a customer sent the file or that your team received it/);
   assert.match(support, /cannot confirm delivery/);

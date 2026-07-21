@@ -19,7 +19,8 @@ test("contains the LicenseResizer customer workflow and production metadata", as
   assert.match(app, /Processed on this device/);
   assert.match(app, /Begin securely/);
   assert.match(app, /does not verify identity/i);
-  assert.match(app, /Open share sheet/);
+  assert.match(app, /Share <span/);
+  assert.match(app, /className="pdf-filename-link"/);
   assert.doesNotMatch(app, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 

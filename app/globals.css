@@ -232,8 +232,10 @@ legend { margin-bottom: 9px; color: var(--navy); font-size: 13px; font-weight: 8
 .complete-panel > p { max-width: 470px; margin-inline: auto; }
 .file-card { max-width: 470px; display: flex; align-items: center; gap: 14px; margin: 26px auto; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--wash); text-align: left; }
 .pdf-badge { width: 44px; height: 50px; display: grid; place-items: center; border-radius: 6px; color: #fff; background: var(--navy); font-size: 10px; font-weight: 900; }
-.file-card strong, .file-card span { display: block; overflow-wrap: anywhere; }
-.file-card strong { color: var(--navy); font-size: 13px; }
+.file-card strong, .file-card span, .pdf-filename-link { display: block; overflow-wrap: anywhere; }
+.file-card strong, .pdf-filename-link { color: var(--navy); font-size: 13px; font-weight: 850; }
+.pdf-filename-link { text-decoration: underline; text-underline-offset: 3px; }
+.pdf-filename-link:hover { color: var(--teal-dark); }
 .file-card span { margin-top: 3px; color: var(--muted); font-size: 10px; }
 .complete-actions { display: flex; justify-content: center; gap: 11px; }
 .delivery-card { max-width: 600px; display: grid; grid-template-columns: 1fr 1fr; gap: 13px; margin: 0 auto 22px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: #f8fbfa; text-align: left; }
