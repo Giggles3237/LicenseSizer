@@ -1,6 +1,6 @@
 # Architecture
 
-LicenseSizer is a Next.js application deployed to Vercel. It combines a public, browser-only license capture workflow with a server-side dealership control plane.
+LicenseResizer is a Next.js application deployed to Vercel. It combines a public, browser-only license capture workflow with a server-side dealership control plane.
 
 ## Customer data flow
 

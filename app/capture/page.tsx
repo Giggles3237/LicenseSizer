@@ -1,5 +1,5 @@
-import LicenseSizerApp from "../license-sizer-app";
+import LicenseResizerApp from "../license-resizer-app";
 
 export default function CapturePage() {
-  return <LicenseSizerApp />;
+  return <LicenseResizerApp />;
 }

@@ -89,7 +89,7 @@ function EdgeLineHandles({
   }));
 }
 
-export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PROFILE }: { deliveryProfile?: DealerDeliveryProfile }) {
+export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_PROFILE }: { deliveryProfile?: DealerDeliveryProfile }) {
   const [interactive, setInteractive] = useState(false);
   const [stage, setStage] = useState<Stage>("start");
   const [activeSide, setActiveSide] = useState<Side>("front");
@@ -534,7 +534,7 @@ export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PRO
       const destination = deliveryEmail ? `\n\nRequested destination: ${deliveryEmail}` : "";
       await navigator.share({ files: [file], title: deliverySubject, text: `${deliveryMessage}${destination}` });
       postActivity("share_opened", "native-share");
-      setMessage("The share sheet was opened. Confirm the correct app and recipient before sending; LicenseSizer cannot verify delivery.");
+      setMessage("The share sheet was opened. Confirm the correct app and recipient before sending; LicenseResizer cannot verify delivery.");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setMessage("Sharing was not completed. Your download is still available below.");
@@ -577,9 +577,9 @@ export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PRO
             <span>{deliveryProfile.dealerName}</span>
           </a>
         ) : (
-          <a className="brand" href="#top" aria-label="LicenseSizer home">
+          <a className="brand" href="#top" aria-label="LicenseResizer home">
             <span className="brand-mark" aria-hidden="true"><i /></span>
-            <span>License<span>Sizer</span></span>
+            <span>License<span>Resizer</span></span>
           </a>
         )}
         <div className="header-actions">{!deliveryProfile.publicSlug && <a className="dealer-link" href="/dashboard">Dealer console</a>}<div className="privacy-pill"><span /> Processed on this device</div></div>
@@ -714,7 +714,7 @@ export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PRO
             <div className="success-mark" aria-hidden="true">✓</div><span className="step-kicker">Ready to share</span><h1>Your PDF is prepared</h1><p>Your true-size copy is ready on this device. Review the destination below, then choose how you’d like to share it.</p>
             <div className="file-card"><div className="pdf-badge">PDF</div><div><strong>{pdfFilename()}</strong><span>{options.pageSize === "letter" ? "US Letter" : "A4"} • True-size card placement</span></div></div>
             <div className="delivery-card"><div><span className="step-kicker">Delivery details</span><strong>{deliveryProfile.publicSlug ? deliveryProfile.destinationName : "Choose your recipient"}</strong></div><label>Email<input type="email" value={deliveryEmail} onChange={(event) => setDeliveryEmail(event.target.value)} placeholder="recipient@example.com" /></label><label>Mobile number<input type="tel" value={deliveryPhone} onChange={(event) => setDeliveryPhone(event.target.value)} placeholder="Optional" /></label>{(deliveryEmail || deliveryPhone) && <div className="destination-copy-actions">{deliveryEmail && <button className="text-button" type="button" onClick={() => void copyDestination(deliveryEmail, "Email address")}>Copy email</button>}{deliveryPhone && <button className="text-button" type="button" onClick={() => void copyDestination(deliveryPhone, "Mobile number")}>Copy mobile</button>}{copiedDestination && <span role="status">{copiedDestination}</span>}</div>}<label>Subject<input value={deliverySubject} onChange={(event) => setDeliverySubject(event.target.value)} /></label><label>Message<textarea rows={3} value={deliveryMessage} onChange={(event) => setDeliveryMessage(event.target.value)} /></label></div>
-            <div className="handoff-explainer"><strong>You control the handoff.</strong><p>Your device will ask you to choose an app and recipient. Check that you selected the dealership shown above and finish sending in that app. LicenseSizer records only that a handoff option was opened—not a confirmed delivery.</p></div>
+            <div className="handoff-explainer"><strong>You control the handoff.</strong><p>Your device will ask you to choose an app and recipient. Check that you selected the dealership shown above and finish sending in that app. LicenseResizer records only that a handoff option was opened—not a confirmed delivery.</p></div>
             <div className="complete-actions">{canShare && <button className="primary large" onClick={sharePdf}>Open share sheet <span aria-hidden="true">↗</span></button>}<a className={canShare ? "secondary download" : "primary large download"} href={pdfUrl} download={pdfFilename()} onClick={() => postActivity("pdf_downloaded", "download")}>Download PDF <span aria-hidden="true">↓</span></a></div>
             {(deliveryEmail || deliveryPhone) && <div className="delivery-fallbacks">{deliveryEmail && <button className="text-button" onClick={openEmail}>Open email draft</button>}{deliveryPhone && <button className="text-button" onClick={openText}>Open text draft</button>}<p>Email and text links cannot attach local files automatically. Use <b>Open share sheet</b> when available, or attach the downloaded PDF before sending.</p></div>}
             <div className="print-warning"><strong>Before printing:</strong> select Actual size / 100% and turn off Fit or Scale to page.</div>
@@ -724,9 +724,9 @@ export default function LicenseSizerApp({ deliveryProfile = DEFAULT_DELIVERY_PRO
       </section>
 
       <footer>
-        <details><summary>Privacy details</summary><p>Photos are processed locally in volatile browser memory. They are not sent to LicenseSizer. Downloaded and shared files are controlled by your browser, device, and chosen destination. Starting over removes the app’s references to your session.</p></details>
+        <details><summary>Privacy details</summary><p>Photos are processed locally in volatile browser memory. They are not sent to LicenseResizer. Downloaded and shared files are controlled by your browser, device, and chosen destination. Starting over removes the app’s references to your session.</p></details>
         <nav className="product-legal-links" aria-label="Legal and support"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a><a href="/support">Support</a></nav>
-        <p>LicenseSizer creates a resized copy. It does not verify identity or document authenticity.</p>
+        <p>LicenseResizer creates a resized copy. It does not verify identity or document authenticity.</p>
       </footer>
     </main>
   );

@@ -1,6 +1,6 @@
 {
-  "name": "LicenseSizer",
-  "short_name": "LicenseSizer",
+  "name": "LicenseResizer",
+  "short_name": "LicenseResizer",
   "description": "Create a clean, true-size license PDF without uploading your photos.",
   "start_url": "/",
   "display": "standalone",

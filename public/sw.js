@@ -1,4 +1,4 @@
-const CACHE_NAME = "license-sizer-shell-v8";
+const CACHE_NAME = "license-resizer-shell-v8";
 const CORE_ASSETS = ["/", "/manifest.webmanifest", "/favicon.svg"];
 
 self.addEventListener("install", (event) => {

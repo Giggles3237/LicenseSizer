@@ -55,12 +55,12 @@ export async function GET() {
     return Response.json({ profile });
   } catch (error) {
     if (error instanceof Error && error.message.includes("DATABASE_URL")) {
-      return Response.json({ error: "The LicenseSizer database is not configured yet. Add DATABASE_URL in Vercel, then redeploy." }, { status: 503 });
+      return Response.json({ error: "The LicenseResizer database is not configured yet. Add DATABASE_URL in Vercel, then redeploy." }, { status: 503 });
     }
     if (typeof error === "object" && error && "cause" in error) {
       const cause = error.cause;
       if (typeof cause === "object" && cause && "code" in cause && cause.code === "42P01") {
-        return Response.json({ error: "The LicenseSizer database setup is incomplete. Apply the database migration, then reload this page." }, { status: 503 });
+        return Response.json({ error: "The LicenseResizer database setup is incomplete. Apply the database migration, then reload this page." }, { status: 503 });
       }
     }
     console.error("Unable to load dealership profile", error);

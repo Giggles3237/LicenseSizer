@@ -24,7 +24,7 @@ test("dealership landing pages expose branding, contact details, and a separate 
   assert.match(landing, /Customer license intake/);
   assert.match(landing, /dealer-visit-summary/);
   assert.match(landing, /\/scan/);
-  assert.match(scanner, /LicenseSizerApp/);
+  assert.match(scanner, /LicenseResizerApp/);
   assert.match(editor, /\/summit-logo\.png/);
   for (const theme of ["Classic", "Modern", "Minimal"]) assert.match(editor, new RegExp(`>${theme}<`));
   assert.match(editor, /Live preview/);

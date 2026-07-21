@@ -291,7 +291,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'Create a properly sized PDF on your device and send it directly to our team. Your license images are never uploaded to LicenseSizer.'"
+          "default": "'Create a properly sized PDF on your device and send it directly to our team. Your license images are never uploaded to LicenseResizer.'"
         },
         "landing_cta": {
           "name": "landing_cta",

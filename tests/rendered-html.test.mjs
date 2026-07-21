@@ -9,12 +9,12 @@ import { cornersToEdgeLines, edgeLinesToCorners, extendLineToBounds, orderDocume
 
 const root = new URL("../", import.meta.url);
 
-test("contains the LicenseSizer customer workflow and production metadata", async () => {
+test("contains the LicenseResizer customer workflow and production metadata", async () => {
   const [app, layout] = await Promise.all([
-    readFile(new URL("../app/license-sizer-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/license-resizer-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(layout, /LicenseSizer/);
+  assert.match(layout, /LicenseResizer/);
   assert.match(app, /Your license copy/);
   assert.match(app, /Processed on this device/);
   assert.match(app, /Begin securely/);
@@ -260,7 +260,7 @@ test("independent edge lines extend to the photo bounds and intersect into the c
 });
 
 test("crop suggestions use friendly direct choices and retain endpoint handles without visible guide lines", async () => {
-  const component = await readFile(new URL("../app/license-sizer-app.tsx", import.meta.url), "utf8");
+  const component = await readFile(new URL("../app/license-resizer-app.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const processing = await readFile(new URL("../lib/image-processing.ts", import.meta.url), "utf8");
   assert.match(component, /Select and move.*crop line/);
@@ -290,7 +290,7 @@ test("edge labels retain screen order for portrait crops", () => {
 
 test("development viewer exposes the primary and fallback image-analysis stages", async () => {
   const [component, analysis] = await Promise.all([
-    readFile(new URL("../app/license-sizer-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/license-resizer-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/development-analysis.ts", import.meta.url), "utf8"),
   ]);
   assert.match(component, /Image analysis viewer/);
@@ -303,7 +303,7 @@ test("development viewer exposes the primary and fallback image-analysis stages"
 
 test("removes the disposable starter and avoids sensitive persistence", async () => {
   const [component, serviceWorker, packageJson] = await Promise.all([
-    readFile(new URL("app/license-sizer-app.tsx", root), "utf8"),
+    readFile(new URL("app/license-resizer-app.tsx", root), "utf8"),
     readFile(new URL("public/sw.js", root), "utf8"),
     readFile(new URL("package.json", root), "utf8"),
   ]);
@@ -314,7 +314,7 @@ test("removes the disposable starter and avoids sensitive persistence", async ()
   assert.match(component, /getTracks\(\).*track\.stop/);
   assert.match(component, /registration\.update\(\)/);
   assert.match(component, /disabled=\{!interactive\}/);
-  assert.match(serviceWorker, /license-sizer-shell-v8/);
+  assert.match(serviceWorker, /license-resizer-shell-v8/);
   assert.match(serviceWorker, /\["document", "script", "style", "font", "manifest"\]/);
   assert.match(serviceWorker, /fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
   assert.doesNotMatch(serviceWorker, /request\.destination.*image/);

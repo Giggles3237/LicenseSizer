@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import LicenseSizerApp from "../../../license-sizer-app";
+import LicenseResizerApp from "../../../license-resizer-app";
 import { getPublicDealerProfile } from "../../../../lib/dealer-data";
 
 export const dynamic = "force-dynamic";
@@ -9,5 +9,5 @@ export default async function DealerScanPage({ params }: { params: Promise<{ slu
   let result = null;
   try { result = await getPublicDealerProfile(slug); } catch { notFound(); }
   if (!result) notFound();
-  return <LicenseSizerApp deliveryProfile={result.profile} />;
+  return <LicenseResizerApp deliveryProfile={result.profile} />;
 }

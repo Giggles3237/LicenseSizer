@@ -11,12 +11,12 @@ test("card-free trials cancel safely and reuse an open checkout", async () => {
 
 test("product copy distinguishes handoff actions from confirmed delivery", async () => {
   const [scanner, dashboard, data, marketing] = await Promise.all([
-    readFile(new URL("../app/license-sizer-app.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/license-resizer-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/dashboard/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/dealer-data.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(scanner, /LicenseSizer records only that a handoff option was opened—not a confirmed delivery/);
+  assert.match(scanner, /LicenseResizer records only that a handoff option was opened—not a confirmed delivery/);
   assert.match(scanner, /Open share sheet/);
   assert.match(dashboard, /cannot confirm that a customer sent the file or that your team received it/);
   assert.match(data, /handoffActions/);

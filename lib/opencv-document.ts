@@ -17,7 +17,7 @@ export async function loadOpenCv() {
       const browserWindow = window as Window & { cv?: Promise<any> | any };
       const finish = () => Promise.resolve(browserWindow.cv).then((cv) => cv?.Mat ? resolve(cv) : reject(new Error("The image analyzer did not initialize.")), reject);
       if (browserWindow.cv) { void finish(); return; }
-      const existing = document.querySelector<HTMLScriptElement>('script[data-license-sizer-opencv]');
+      const existing = document.querySelector<HTMLScriptElement>('script[data-license-resizer-opencv]');
       const script = existing ?? document.createElement("script");
       const timeout = window.setTimeout(() => reject(new Error("The image analyzer took too long to start.")), 30_000);
       const ready = () => { window.clearTimeout(timeout); void finish(); };
@@ -26,7 +26,7 @@ export async function loadOpenCv() {
       if (!existing) {
         script.src = "/opencv.js";
         script.async = true;
-        script.dataset.licenseSizerOpencv = "true";
+        script.dataset.licenseResizerOpencv = "true";
         document.head.appendChild(script);
       }
     }).catch((error) => { openCvPromise = null; throw error; });

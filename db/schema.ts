@@ -11,7 +11,7 @@ export const dealerProfiles = pgTable("dealer_profiles", {
   facebookUrl: text("facebook_url"),
   logoUrl: text("logo_url"),
   landingHeadline: text("landing_headline").notNull().default("A faster, more private way to share your license."),
-  landingDescription: text("landing_description").notNull().default("Create a properly sized PDF on your device and send it directly to our team. Your license images are never uploaded to LicenseSizer."),
+  landingDescription: text("landing_description").notNull().default("Create a properly sized PDF on your device and send it directly to our team. Your license images are never uploaded to LicenseResizer."),
   landingCta: text("landing_cta").notNull().default("Scan my license"),
   landingTheme: text("landing_theme").notNull().default("classic"),
   brandColor: text("brand_color").notNull().default("#123f55"),

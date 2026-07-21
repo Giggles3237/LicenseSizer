@@ -1,8 +1,8 @@
-# LicenseSizer
+# LicenseResizer
 
-LicenseSizer is a privacy-first document capture and delivery product for automotive dealerships. A dealership creates an organization, configures its delivery destination and PDF policy, then shares a branded customer link. The customer photographs a driver's license, confirms the crop, and sends the locally generated PDF through the device's native share sheet.
+LicenseResizer is a privacy-first document capture and delivery product for automotive dealerships. A dealership creates an organization, configures its delivery destination and PDF policy, then shares a branded customer link. The customer photographs a driver's license, confirms the crop, and sends the locally generated PDF through the device's native share sheet.
 
-License images and PDF bytes stay in volatile browser memory. LicenseSizer stores dealership configuration, subscription state, and minimal workflow events; it does not store license images, PDFs, customer names, filenames, or document content.
+License images and PDF bytes stay in volatile browser memory. LicenseResizer stores dealership configuration, subscription state, and minimal workflow events; it does not store license images, PDFs, customer names, filenames, or document content.
 
 ## Product surfaces
 
@@ -53,4 +53,4 @@ Import the repository into Vercel and configure every value in `.env.example` fo
 
 The native Web Share API can attach the generated PDF to user-selected applications such as Mail or Messages. Browsers do not permit a site to silently select a recipient or confirm delivery. `mailto:` and `sms:` fallbacks can preset the destination and message but cannot attach a local PDF, so the interface explains that the user must attach the downloaded file. Activity reporting describes handoff options opened, not confirmed sends or receipts.
 
-LicenseSizer resizes and corrects a document image. It does not verify identity, validate a license, decode a barcode, or certify authenticity.
+LicenseResizer resizes and corrects a document image. It does not verify identity, validate a license, decode a barcode, or certify authenticity.

@@ -51,7 +51,7 @@ export default async function DealerCapturePage({ params }: { params: Promise<{ 
     </section>
 
     <section className="dealer-reassurance-section" aria-label="Privacy and sizing details">
-      <article><span className="dealer-shield" aria-hidden="true">OK</span><h2>Your license stays private.</h2><p>Photos and PDFs are processed in this browser. LicenseSizer does not store your license image or document.</p></article>
+      <article><span className="dealer-shield" aria-hidden="true">OK</span><h2>Your license stays private.</h2><p>Photos and PDFs are processed in this browser. LicenseResizer does not store your license image or document.</p></article>
       <article><span className="dealer-shield" aria-hidden="true">1:1</span><h2>True-size PDF output.</h2><p>The final PDF places the license at nominal ID-1 size so the dealership gets a clean copy for its workflow.</p></article>
       <article><span className="dealer-shield" aria-hidden="true">You</span><h2>You control the handoff.</h2><p>Your device opens the sharing option. You choose the app, verify the recipient, and finish sending.</p></article>
     </section>
@@ -64,6 +64,6 @@ export default async function DealerCapturePage({ params }: { params: Promise<{ 
       {profile.facebookUrl && <p><span>Social</span><a href={profile.facebookUrl} target="_blank" rel="noreferrer">Facebook</a></p>}
     </address></section>}
 
-    <footer className="dealer-landing-footer"><span>Private document preparation powered by <strong>LicenseSizer</strong></span><nav aria-label="Legal and support"><Link href="/privacy">Privacy</Link><Link href="/security">Security</Link><Link href="/terms">Terms</Link><Link href="/support">Support</Link></nav><Link href={`/d/${profile.publicSlug}/scan`}>Begin scan</Link></footer>
+    <footer className="dealer-landing-footer"><span>Private document preparation powered by <strong>LicenseResizer</strong></span><nav aria-label="Legal and support"><Link href="/privacy">Privacy</Link><Link href="/security">Security</Link><Link href="/terms">Terms</Link><Link href="/support">Support</Link></nav><Link href={`/d/${profile.publicSlug}/scan`}>Begin scan</Link></footer>
   </main>;
 }

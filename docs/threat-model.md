@@ -1,6 +1,6 @@
 # Threat model
 
-Driver's-license images and generated PDFs are sensitive personal data even though LicenseSizer does not interpret their contents.
+Driver's-license images and generated PDFs are sensitive personal data even though LicenseResizer does not interpret their contents.
 
 ## In scope
 

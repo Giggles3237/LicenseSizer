@@ -30,7 +30,7 @@ export function cardPlacement(pageWidth: number, pageHeight: number, count: 1 | 
 export async function composePdf(front: Blob, back: Blob | null, options: PdfOptions): Promise<Blob> {
   const pdf = await PDFDocument.create();
   pdf.setTitle("License copy");
-  pdf.setCreator("LicenseSizer");
+  pdf.setCreator("LicenseResizer");
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const pageSize = PAGE_SIZES[options.pageSize];
   const frontImage = await pdf.embedJpg(await front.arrayBuffer());
