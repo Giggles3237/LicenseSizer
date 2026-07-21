@@ -80,6 +80,8 @@ test("trust center and guided launch checklist are present", async () => {
   for (const step of ["Confirm dealership page", "Add a handoff destination", "Review capture rules", "Activate the free trial", "Test the customer flow", "Invite or review your team", "Share the customer link"]) assert.match(dashboard, new RegExp(step));
   assert.match(dashboardPage, /signed-in-as/);
   assert.match(dashboardPage, /Signed in as/);
+  assert.match(dashboardPage, /SignOutButton/);
+  assert.match(dashboardPage, /Log out/);
   assert.match(privacy, /does not provide an image or PDF upload endpoint/);
   assert.match(terms, /No verification or confirmed delivery/);
   assert.match(security, /Data boundary/);
