@@ -25,7 +25,7 @@ const normalizeProfile = (row: typeof dealerProfiles.$inferSelect): DealerDelive
   destinationPhone: row.destinationPhone ?? "",
   messageSubject: row.messageSubject,
   messageBody: row.messageBody,
-  backMode: row.backMode as DealerDeliveryProfile["backMode"],
+  backMode: row.backMode === "front-only" ? "front-only" : "optional",
   pageSize: row.pageSize as DealerDeliveryProfile["pageSize"],
   layout: row.layout as DealerDeliveryProfile["layout"],
   quality: row.quality as DealerDeliveryProfile["quality"],

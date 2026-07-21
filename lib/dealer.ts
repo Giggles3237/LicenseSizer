@@ -18,7 +18,7 @@ export type DealerDeliveryProfile = {
   destinationPhone: string;
   messageSubject: string;
   messageBody: string;
-  backMode: "required" | "optional" | "front-only";
+  backMode: "optional" | "front-only";
   pageSize: "letter" | "a4";
   layout: "stacked" | "separate-pages";
   quality: "standard" | "high";
@@ -41,26 +41,26 @@ export const ACTIVITY_EVENT_TYPES = [
 export type ActivityEventType = typeof ACTIVITY_EVENT_TYPES[number];
 
 export const DEFAULT_DELIVERY_PROFILE: DealerDeliveryProfile = {
-  dealerName: "LicenseSizer",
+  dealerName: "Summit Motor Group",
   publicSlug: "",
-  publicAddress: "",
-  publicPhone: "",
-  publicEmail: "",
-  websiteUrl: "",
+  publicAddress: "4100 Summit Parkway\nAnytown, NY 10001",
+  publicPhone: "(555) 014-2026",
+  publicEmail: "sales@summitmotorgroup.example",
+  websiteUrl: "https://summitmotorgroup.example",
   facebookUrl: "",
-  logoUrl: "",
-  landingHeadline: "A faster, more private way to share your license.",
-  landingDescription: "Create a properly sized PDF on your device and send it directly to our team. Your license images are never uploaded to LicenseSizer.",
-  landingCta: "Scan my license",
+  logoUrl: "/summit-logo.png",
+  landingHeadline: "Send Summit Motor Group your license securely before your visit.",
+  landingDescription: "Our sales team needs a true-size license copy to prepare your test drive or paperwork. Capture it on your own phone, create the PDF locally, and choose how to send it to Summit Motor Group.",
+  landingCta: "Start secure license capture",
   landingTheme: "classic",
-  brandColor: "#123f55",
-  accentColor: "#168b79",
-  destinationName: "Dealership team",
-  destinationEmail: "",
-  destinationPhone: "",
-  messageSubject: "Driver's license copy",
-  messageBody: "Attached is the requested copy of my driver's license.",
-  backMode: "required",
+  brandColor: "#06233f",
+  accentColor: "#677178",
+  destinationName: "Summit sales team",
+  destinationEmail: "sales@summitmotorgroup.example",
+  destinationPhone: "(555) 014-2026",
+  messageSubject: "Driver's license copy for Summit Motor Group",
+  messageBody: "Attached is the requested copy of my driver's license for Summit Motor Group.",
+  backMode: "optional",
   pageSize: "letter",
   layout: "stacked",
   quality: "high",

@@ -21,7 +21,7 @@ export const dealerProfiles = pgTable("dealer_profiles", {
   destinationPhone: text("destination_phone"),
   messageSubject: text("message_subject").notNull().default("Driver's license copy"),
   messageBody: text("message_body").notNull().default("Attached is the requested copy of my driver's license."),
-  backMode: text("back_mode").notNull().default("required"),
+  backMode: text("back_mode").notNull().default("optional"),
   pageSize: text("page_size").notNull().default("letter"),
   layout: text("layout").notNull().default("stacked"),
   quality: text("quality").notNull().default("high"),

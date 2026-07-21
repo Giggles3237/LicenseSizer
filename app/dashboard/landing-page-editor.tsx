@@ -23,7 +23,7 @@ export default function LandingPageEditor({ profile, setProfile, onSubmit, publi
         <h3>Dealership identity</h3>
         <label>Dealership name<input value={profile.dealerName} onChange={(event) => update("dealerName", event.target.value)} required /></label>
         <label>Public link<span className="input-prefix">/d/</span><input className="prefixed" value={profile.publicSlug} onChange={(event) => update("publicSlug", event.target.value)} required /></label>
-        <label>Logo URL<input type="url" value={profile.logoUrl} onChange={(event) => update("logoUrl", event.target.value)} placeholder="https://example.com/logo.png" /></label>
+        <label>Logo URL or asset path<input value={profile.logoUrl} onChange={(event) => update("logoUrl", event.target.value)} placeholder="/summit-logo.png or https://example.com/logo.png" /></label>
 
         <h3>Page content</h3>
         <label>Headline<input value={profile.landingHeadline} onChange={(event) => update("landingHeadline", event.target.value)} maxLength={140} /></label>

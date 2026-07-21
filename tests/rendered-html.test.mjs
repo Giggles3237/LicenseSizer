@@ -15,9 +15,9 @@ test("contains the LicenseSizer customer workflow and production metadata", asyn
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(layout, /LicenseSizer/);
-  assert.match(app, /A true-size license copy/);
+  assert.match(app, /Your license copy/);
   assert.match(app, /Processed on this device/);
-  assert.match(app, /Scan a license/);
+  assert.match(app, /Begin securely/);
   assert.match(app, /does not verify identity/i);
   assert.match(app, /Open share sheet/);
   assert.doesNotMatch(app, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
@@ -267,10 +267,12 @@ test("crop suggestions use friendly direct choices and retain endpoint handles w
   assert.match(component, /handle \$\{endIndex \+ 1\} of 2/);
   assert.match(component, /startWholeLineDrag/);
   assert.match(component, /aria-pressed=\{selectedLine === index\}/);
-  assert.match(component, /Best match/);
-  assert.match(component, /role="radiogroup" aria-label="Crop suggestions"/);
+  assert.match(component, /Recommended/);
+  assert.match(component, /role="radiogroup" aria-label="Framing options"/);
   assert.match(component, /Rotate photo 90 degrees clockwise/);
   assert.doesNotMatch(component, /rotateAdjusted/);
+  assert.match(component, /Back is always optional/);
+  assert.doesNotMatch(component, /Capture required back/);
   assert.match(component, /chooseCropCandidate/);
   assert.match(processing, /prioritizeCropCandidates\(candidates, hint\)/);
   assert.doesNotMatch(styles, /\.crop-line::before|\.crop-line\.selected::before/);

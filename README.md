@@ -13,7 +13,7 @@ License images and PDF bytes stay in volatile browser memory. LicenseSizer store
 - `/privacy`, `/terms`, `/security`, `/subprocessors`, `/support` — public trust, legal, and support center
 - `/api/webhooks/stripe` — signed Stripe subscription webhook
 
-Dealer admins control whether the back is required, optional, or omitted; Letter/A4 output; stacked/separate-page layout; image detail; labels; crop marks; destination email/phone; and preset message. Customers and dealer users do not see PDF configuration controls.
+Dealer admins control whether the optional back is offered or omitted; Letter/A4 output; stacked/separate-page layout; image detail; labels; crop marks; destination email/phone; and preset message. Customers and dealer users do not see PDF configuration controls.
 
 Dealer admins can also customize a public landing page with a readable dealership link, logo, headline, description, call-to-action, address, public phone and email, website, Facebook page, brand colors, and Classic, Modern, or Minimal layout. New organizations receive the dealership-name slug when available and a numeric suffix only when needed to keep links unique.
 

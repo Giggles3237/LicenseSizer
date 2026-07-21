@@ -18,6 +18,12 @@ function externalUrl(value: string | undefined) {
   } catch { return ""; }
 }
 
+function publicAssetOrExternalUrl(value: string | undefined) {
+  const trimmed = value?.trim().slice(0, 500) || "";
+  if (/^\/[a-z0-9/_\-.% ]+$/i.test(trimmed)) return trimmed;
+  return externalUrl(trimmed);
+}
+
 function color(value: string | undefined, fallback: string) {
   return /^#[0-9a-f]{6}$/i.test(value || "") ? value! : fallback;
 }
@@ -74,7 +80,7 @@ export async function PUT(request: Request) {
     publicEmail: body.publicEmail?.trim().toLowerCase().slice(0, 254) || "",
     websiteUrl: externalUrl(body.websiteUrl),
     facebookUrl: externalUrl(body.facebookUrl),
-    logoUrl: externalUrl(body.logoUrl),
+    logoUrl: publicAssetOrExternalUrl(body.logoUrl),
     landingHeadline: body.landingHeadline?.trim().slice(0, 140) || DEFAULT_DELIVERY_PROFILE.landingHeadline,
     landingDescription: body.landingDescription?.trim().slice(0, 600) || DEFAULT_DELIVERY_PROFILE.landingDescription,
     landingCta: body.landingCta?.trim().slice(0, 50) || DEFAULT_DELIVERY_PROFILE.landingCta,
@@ -86,7 +92,7 @@ export async function PUT(request: Request) {
     destinationPhone: body.destinationPhone?.trim().slice(0, 40) || "",
     messageSubject: body.messageSubject?.trim().slice(0, 140) || "Driver's license copy",
     messageBody: body.messageBody?.trim().slice(0, 1000) || "Attached is the requested copy of my driver's license.",
-    backMode: body.backMode === "front-only" || body.backMode === "optional" ? body.backMode : "required",
+    backMode: body.backMode === "front-only" ? "front-only" : "optional",
     pageSize: body.pageSize === "a4" ? "a4" : "letter",
     layout: body.layout === "separate-pages" ? "separate-pages" : "stacked",
     quality: body.quality === "standard" ? "standard" : "high",

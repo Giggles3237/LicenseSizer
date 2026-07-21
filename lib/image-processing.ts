@@ -187,15 +187,15 @@ export async function analyzeImage(source: Blob): Promise<QualityResult> {
   const sharpness = laplacianSquared / Math.max(1, samples) - mean * mean;
 
   if (brightness < 55) {
-    return { status: "warn", title: "The photo looks dark", detail: "Use softer, brighter light if any details are hard to read.", brightness, glare, sharpness };
+    return { status: "warn", title: "A little more light may help", detail: "Choose a brighter photo if any details are difficult to read.", brightness, glare, sharpness };
   }
   if (brightness > 218 || glare > 0.08) {
-    return { status: "warn", title: "Check for glare", detail: "Tilt the card away from direct light if any information is obscured.", brightness, glare, sharpness };
+    return { status: "warn", title: "A touch of glare is visible", detail: "Choose another photo if the reflection covers important details.", brightness, glare, sharpness };
   }
   if (sharpness < 55) {
-    return { status: "warn", title: "Check the focus", detail: "Retake the photo if the text is not crisp and readable.", brightness, glare, sharpness };
+    return { status: "warn", title: "The focus could be sharper", detail: "Choose another photo if the text does not look crisp and readable.", brightness, glare, sharpness };
   }
-  return { status: "pass", title: "Photo looks usable", detail: "Confirm that all four corners are inside the crop.", brightness, glare, sharpness };
+  return { status: "pass", title: "Clear and ready", detail: "Confirm the outline follows all four edges, then continue.", brightness, glare, sharpness };
 }
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
