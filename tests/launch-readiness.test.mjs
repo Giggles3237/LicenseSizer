@@ -17,7 +17,9 @@ test("product copy distinguishes handoff actions from confirmed delivery", async
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/support/page.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(scanner, /Copy the destination if needed, then share the attached PDF/);
+  assert.match(scanner, /Copy a destination if needed, then share the attached PDF/);
+  assert.match(scanner, /<span>Email<\/span>/);
+  assert.match(scanner, /<span>Text<\/span>/);
   assert.match(scanner, /Open share sheet/);
   assert.doesNotMatch(scanner, /Open email draft|Open text draft|Before printing|You control the handoff/);
   assert.match(dashboard, /cannot confirm that a customer sent the file or that your team received it/);

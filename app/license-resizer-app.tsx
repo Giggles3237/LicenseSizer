@@ -555,8 +555,6 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   });
   const selectedCandidate = cropCandidates[candidateIndex] ?? null;
   const activeItem = activeSide === "front" ? front : back;
-  const primaryDestination = deliveryEmail || deliveryPhone;
-  const primaryDestinationLabel = deliveryEmail ? "Email" : "Mobile number";
 
   return (
     <main className="app-shell">
@@ -701,9 +699,9 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
 
         {stage === "complete" && pdfUrl && (
           <div className="panel complete-panel">
-            <div className="success-mark" aria-hidden="true">OK</div><span className="step-kicker">Ready to share</span><h1>Your PDF is prepared</h1><p>Your true-size copy is ready on this device. Copy the destination if needed, then share the attached PDF.</p>
+            <div className="success-mark" aria-hidden="true">OK</div><span className="step-kicker">Ready to share</span><h1>Your PDF is prepared</h1><p>Your true-size copy is ready on this device. Copy a destination if needed, then share the attached PDF.</p>
             <div className="file-card"><div className="pdf-badge">PDF</div><div><strong>{pdfFilename()}</strong><span>{options.pageSize === "letter" ? "US Letter" : "A4"} - True-size card placement</span></div></div>
-            <div className="delivery-card simplified"><div><span className="step-kicker">Send to</span><strong>{deliveryProfile.publicSlug ? deliveryProfile.destinationName : "Your recipient"}</strong></div>{primaryDestination && <div className="destination-value"><span>{primaryDestinationLabel}</span><code>{primaryDestination}</code><button className="text-button" type="button" onClick={() => void copyDestination(primaryDestination, primaryDestinationLabel)}>Copy destination</button></div>}{copiedDestination && <span className="copy-status" role="status">{copiedDestination}</span>}</div>
+            <div className="delivery-card simplified"><div><span className="step-kicker">Send to</span><strong>{deliveryProfile.publicSlug ? deliveryProfile.destinationName : "Your recipient"}</strong></div><div className="destination-list">{deliveryEmail && <div className="destination-value"><span>Email</span><code>{deliveryEmail}</code><button className="text-button" type="button" onClick={() => void copyDestination(deliveryEmail, "Email")}>Copy</button></div>}{deliveryPhone && <div className="destination-value"><span>Text</span><code>{deliveryPhone}</code><button className="text-button" type="button" onClick={() => void copyDestination(deliveryPhone, "Text")}>Copy</button></div>}</div>{copiedDestination && <span className="copy-status" role="status">{copiedDestination}</span>}</div>
             <div className="complete-actions">{canShare && <button className="primary large" onClick={sharePdf}>Open share sheet <span aria-hidden="true">↗</span></button>}<a className={canShare ? "secondary download" : "primary large download"} href={pdfUrl} download={pdfFilename()} onClick={() => postActivity("pdf_downloaded", "download")}>Download PDF <span aria-hidden="true">↓</span></a></div>
             <button className="clear-button" onClick={startOver}>Start over & clear images</button>
           </div>
