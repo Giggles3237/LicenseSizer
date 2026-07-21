@@ -19,6 +19,7 @@
     "@clerk/nextjs": "^7.5.20",
     "@neondatabase/serverless": "^1.1.0",
     "@techstark/opencv-js": "^5.0.0-release.1",
+    "@vercel/analytics": "^2.0.1",
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",
     "pdf-lib": "^1.17.1",
