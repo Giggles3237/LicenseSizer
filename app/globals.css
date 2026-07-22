@@ -89,6 +89,7 @@ button { color: inherit; }
 
 .capture-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .choice-card { min-height: 185px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 25px; border: 1px solid #cfdcdf; border-radius: 14px; background: #fbfdfc; transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
+.choice-card-wide { grid-column: 1 / -1; }
 .choice-card:hover { border-color: var(--teal); transform: translateY(-2px); box-shadow: 0 12px 30px rgba(21,80,82,.09); }
 .choice-card strong { margin: 15px 0 3px; color: var(--navy); font-size: 16px; }
 .choice-card small { color: var(--muted); }

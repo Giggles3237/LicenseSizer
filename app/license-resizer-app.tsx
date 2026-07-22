@@ -291,23 +291,6 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     void generateDevelopmentView(analysisView);
   };
 
-  const openCamera = async () => {
-    setMessage("");
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setMessage("Camera access is not available here. Choose a photo instead.");
-      fileRef.current?.click();
-      return;
-    }
-    try {
-      stopCamera();
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-      streamRef.current = stream;
-      setCameraOpen(true);
-    } catch {
-      setMessage("Camera permission was not granted. You can still choose a photo from this device.");
-    }
-  };
-
   const prepareDraft = async (blob: Blob, guideCorners?: [Point, Point, Point, Point]) => {
     setBusy(true);
     setMessage("Preparing your photo and finding the cleanest framing…");
@@ -637,11 +620,10 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
               </div>
             ) : (
               <div className="capture-choices">
-                <button className="choice-card" onClick={openCamera}><span className="choice-icon camera-icon" aria-hidden="true" /><strong>Open camera</strong><small>Photograph the license now</small></button>
-                <button className="choice-card" onClick={() => fileRef.current?.click()}><span className="choice-icon upload-icon" aria-hidden="true">↑</span><strong>Choose from photos</strong><small>Select a photo already on this device</small></button>
+                <button className="choice-card choice-card-wide" onClick={() => fileRef.current?.click()}><span className="choice-icon upload-icon" aria-hidden="true">↑</span><strong>Add photo</strong><small>Use the camera, photo library, or files on this device</small></button>
               </div>
             )}
-            <input ref={fileRef} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" onChange={chooseFile} />
+            <input ref={fileRef} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={chooseFile} />
             <button className="back-link" onClick={() => {
               if (activeSide === "front" && !front) setStage("start");
               else { setActiveSide("front"); setStage("ready"); }
