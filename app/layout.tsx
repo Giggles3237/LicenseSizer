@@ -26,7 +26,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const content = (
+  const appContent = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+    ? <ClerkProvider>{children}</ClerkProvider>
+    : children;
+
+  return (
     <html lang="en">
       <head>
         {/* Google Tag Manager */}
@@ -52,12 +56,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           />
         </noscript>
         {/* End Google Tag Manager (noscript) */}
-        {children}
+        {appContent}
         <Analytics />
       </body>
     </html>
   );
-  return process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-    ? <ClerkProvider>{content}</ClerkProvider>
-    : content;
 }
