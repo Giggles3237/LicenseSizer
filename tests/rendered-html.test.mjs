@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 import { CARD_HEIGHT_POINTS, CARD_WIDTH_POINTS, cardPlacement } from "../lib/pdf.ts";
-import { orientDocumentCorners, prioritizeCropCandidates } from "../lib/image-processing.ts";
+import { orientDocumentCorners } from "../lib/image-processing.ts";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry.ts";
 import { detectDocumentCandidatesWithOpenCv, detectDocumentWithOpenCv, warpDocumentWithOpenCv } from "../lib/opencv-document.ts";
 import { cornersToEdgeLines, edgeLinesToCorners, extendLineToBounds, orderDocumentPoints, squareToQuadrilateral } from "../lib/document-geometry.ts";
@@ -137,29 +137,6 @@ test("Canny reconstructs a perspective crop from separated opposite edge pairs",
   assert.ok(Math.abs((canny?.corners[2].y ?? 0) - corners[2].y / height) < 0.06);
 });
 
-test("automatic crop promotes cross-detector consensus over a confident outlier", () => {
-  const detection = (corners, confidence, found = true) => ({ corners, confidence, found, rotated: false, aspectRatio: 1.5 });
-  const card = [{ x: 0.16, y: 0.24 }, { x: 0.84, y: 0.23 }, { x: 0.85, y: 0.69 }, { x: 0.15, y: 0.7 }];
-  const nearCard = card.map((point) => ({ x: point.x + 0.008, y: point.y - 0.006 }));
-  const distractor = [{ x: 0.04, y: 0.05 }, { x: 0.62, y: 0.05 }, { x: 0.62, y: 0.42 }, { x: 0.04, y: 0.42 }];
-  const ranked = prioritizeCropCandidates([
-    { id: "canny", label: "Canny", detail: "", detection: detection(distractor, 0.91) },
-    { id: "background", label: "Background", detail: "", detection: detection(card, 0.86) },
-    { id: "gradient", label: "Gradient", detail: "", detection: detection(nearCard, 0.79) },
-  ]);
-  assert.equal(ranked[0].id, "background");
-});
-
-test("automatic crop refuses to silently choose among conflicting detections", () => {
-  const detection = (corners, confidence) => ({ corners, confidence, found: true, rotated: false, aspectRatio: 1.5 });
-  const ranked = prioritizeCropCandidates([
-    { id: "canny", label: "Canny", detail: "", detection: detection([{ x: 0.05, y: 0.08 }, { x: 0.63, y: 0.08 }, { x: 0.63, y: 0.45 }, { x: 0.05, y: 0.45 }], 0.93) },
-    { id: "background", label: "Background", detail: "", detection: detection([{ x: 0.37, y: 0.5 }, { x: 0.94, y: 0.5 }, { x: 0.94, y: 0.88 }, { x: 0.37, y: 0.88 }], 0.88) },
-  ]);
-  assert.equal(ranked[0].id, "framing");
-  assert.equal(ranked[0].detection.found, false);
-});
-
 test("Canny uses portrait pixel geometry and rejects larger shapes touching the photo frame", async () => {
   globalThis.window ??= { cv: await Promise.resolve((await import("@techstark/opencv-js")).default) };
   globalThis.HTMLImageElement ??= class HTMLImageElement {};
@@ -260,7 +237,7 @@ test("independent edge lines extend to the photo bounds and intersect into the c
   assert.notDeepEqual(intersections[0], expected[0], "moving one line end should change its intersections independently");
 });
 
-test("crop suggestions use friendly direct choices and retain endpoint handles without visible guide lines", async () => {
+test("crop review uses the Canny suggestion and retains endpoint handles without visible guide lines", async () => {
   const component = await readFile(new URL("../app/license-resizer-app.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const processing = await readFile(new URL("../lib/image-processing.ts", import.meta.url), "utf8");
@@ -268,14 +245,14 @@ test("crop suggestions use friendly direct choices and retain endpoint handles w
   assert.match(component, /handle \$\{endIndex \+ 1\} of 2/);
   assert.match(component, /startWholeLineDrag/);
   assert.match(component, /aria-pressed=\{selectedLine === index\}/);
-  assert.match(component, /Recommended/);
-  assert.match(component, /role="radiogroup" aria-label="Framing options"/);
+  assert.doesNotMatch(component, /role="radiogroup" aria-label="Framing options"/);
+  assert.doesNotMatch(component, /candidate-options|chooseCropCandidate/);
   assert.match(component, /Rotate photo 90 degrees clockwise/);
   assert.doesNotMatch(component, /rotateAdjusted/);
   assert.match(component, /Back is always optional/);
   assert.doesNotMatch(component, /Capture required back/);
-  assert.match(component, /chooseCropCandidate/);
-  assert.match(processing, /prioritizeCropCandidates\(candidates, hint\)/);
+  assert.match(processing, /id: "canny" as const/);
+  assert.doesNotMatch(processing, /id: "background"|id: "gradient"|id: "framing"/);
   assert.doesNotMatch(styles, /\.crop-line::before|\.crop-line\.selected::before/);
   assert.match(styles, /\.line-handle\.selected/);
   assert.match(styles, /\.crop-selection \.crop-mask/);

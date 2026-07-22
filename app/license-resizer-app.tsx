@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, KeyboardEvent, PointerEvent, useCallback, useEffect, useRef, useState } from "react";
-import { analyzeImage, correctPerspective, CropCandidate, DEFAULT_CORNERS, detectDocumentCandidates, DetectionResult, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
+import { analyzeImage, correctPerspective, DEFAULT_CORNERS, detectDocumentCandidates, DetectionResult, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry";
 import { cornersToEdgeLines, edgeLinesToCorners, type EdgeLine } from "../lib/document-geometry";
 import { createDevelopmentAnalysisView, DEVELOPMENT_ANALYSIS_VIEWS, type DevelopmentAnalysisView } from "../lib/development-analysis";
@@ -47,18 +47,6 @@ async function rotateImageClockwise(source: Blob): Promise<Blob> {
   ));
 }
 
-function cropSuggestionName(candidate: CropCandidate, index: number) {
-  if (index === 0) return "Recommended";
-  if (candidate.id === "framing") return "Camera guide";
-  return `Option ${index + 1}`;
-}
-
-function cropSuggestionDetail(candidate: CropCandidate, index: number) {
-  if (index === 0) return "Our best framing";
-  if (candidate.id === "framing") return "As photographed";
-  return "Compare framing";
-}
-
 function Progress({ stage }: { stage: Stage }) {
   const steps = ["Capture", "Refine", "Finish"];
   const current = stage === "start" || stage === "capture" ? 0 : stage === "review" || stage === "ready" ? 1 : 2;
@@ -102,8 +90,6 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   const [selectedLine, setSelectedLine] = useState(0);
   const [quality, setQuality] = useState<QualityResult | null>(null);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
-  const [cropCandidates, setCropCandidates] = useState<CropCandidate[]>([]);
-  const [candidateIndex, setCandidateIndex] = useState(0);
   const [draftAspect, setDraftAspect] = useState(1.333);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -185,8 +171,6 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     setDraftUrl("");
     setQuality(null);
     setDetection(null);
-    setCropCandidates([]);
-    setCandidateIndex(0);
     setEdgeLines(cornersToEdgeLines(DEFAULT_CORNERS));
   }, [draftUrl, releaseAnalysisView]);
 
@@ -304,8 +288,6 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
       const [qualityResult, candidates] = await Promise.all([analyzeImage(blob), detectDocumentCandidates(blob, guideCorners)]);
       const detectionResult = candidates[0].detection;
       setQuality(qualityResult);
-      setCropCandidates(candidates);
-      setCandidateIndex(0);
       setDetection(detectionResult);
       setDraftAspect(detectionResult.aspectRatio);
       setEdgeLines(cornersToEdgeLines(detectionResult.corners));
@@ -382,17 +364,6 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     dragHandle.current = { kind: "handle", line: lineIndex, end };
     event.currentTarget.setPointerCapture(event.pointerId);
     moveFromPointer(event, lineIndex, end);
-  };
-
-  const chooseCropCandidate = (index: number) => {
-    if (!cropCandidates.length) return;
-    const normalized = (index + cropCandidates.length) % cropCandidates.length;
-    const candidate = cropCandidates[normalized];
-    setCandidateIndex(normalized);
-    setDetection(candidate.detection);
-    setEdgeLines(cornersToEdgeLines(candidate.detection.corners));
-    setSelectedLine(0);
-    setMessage("");
   };
 
   const startWholeLineDrag = (event: PointerEvent<HTMLButtonElement>, lineIndex: number) => {
@@ -484,8 +455,6 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     setDraftAspect(item.sourceAspect);
     setEdgeLines(cornersToEdgeLines(item.corners));
     const savedDetection: DetectionResult = { corners: item.corners, confidence: 1, found: true, rotated: false, aspectRatio: item.sourceAspect };
-    setCropCandidates([{ id: "framing", label: "Saved crop", detail: "The crop previously used for this image.", detection: savedDetection }]);
-    setCandidateIndex(0);
     setDetection(savedDetection);
     setQuality(null);
     setMessage("");
@@ -550,7 +519,6 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     const dy = (line.end.y - line.start.y) * 100;
     return { left: `${line.start.x * 100}%`, top: `${line.start.y * 100}%`, width: `${Math.sqrt(dx * dx + dy * dy)}%`, transform: `rotate(${Math.atan2(dy, dx)}rad)` };
   });
-  const selectedCandidate = cropCandidates[candidateIndex] ?? null;
   const activeItem = activeSide === "front" ? front : back;
 
   return (
@@ -636,10 +604,6 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
             <div className="panel-heading"><div><span className="step-kicker">Refine {sideLabel(activeSide)}</span><h1>Fine-tune the framing</h1></div></div>
             <div className="photo-toolbar" aria-label="Photo actions"><span>Original photo</span><div><button type="button" onClick={() => void rotateDraft()} disabled={busy} aria-label="Rotate photo 90 degrees clockwise"><span aria-hidden="true">↻</span> Rotate</button><button type="button" onClick={() => beginCapture(activeSide)} disabled={busy}><span aria-hidden="true">↺</span> Replace</button></div></div>
             <p>We’ve selected the strongest framing. The outline should sit just inside all four edges; drag any line or round handle for a precise fit.</p>
-            {selectedCandidate && cropCandidates.length > 1 && <section className="crop-candidate-picker" aria-labelledby="crop-suggestions-title">
-              <div className="candidate-heading"><div><strong id="crop-suggestions-title">Framing</strong><span>Compare only if the recommended outline misses an edge.</span></div></div>
-              <div className="candidate-options" role="radiogroup" aria-label="Framing options">{cropCandidates.map((candidate, index) => <button type="button" role="radio" key={candidate.id} className={index === candidateIndex ? "active" : ""} aria-checked={index === candidateIndex} onClick={() => chooseCropCandidate(index)}><span className="candidate-frame" aria-hidden="true"><i /></span><strong>{cropSuggestionName(candidate, index)}</strong><small>{cropSuggestionDetail(candidate, index)}</small>{index === candidateIndex && <b>Selected</b>}</button>)}</div>
-            </section>}
             <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{detection?.found ? "Framing ready to review" : "A quick adjustment may be needed"}</div>
             <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(65vh * ${draftAspect}))` }} ref={cropRef} onPointerMove={moveActiveDrag} onPointerUp={() => { dragHandle.current = null; }} onPointerCancel={() => { dragHandle.current = null; }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -3,7 +3,7 @@ import type { DetectionResult, Point } from "./image-processing";
 import { orderDocumentPoints } from "./document-geometry.ts";
 
 export type OpenCvCropCandidate = {
-  id: "canny" | "background";
+  id: "canny";
   label: string;
   detail: string;
   detection: DetectionResult;
@@ -86,50 +86,18 @@ export async function detectDocumentCandidatesWithOpenCv(
 ): Promise<OpenCvCropCandidate[]> {
   const cv = await loadOpenCv();
   const src = cv.imread(canvas);
-  const rgb = new cv.Mat();
   const gray = new cv.Mat();
   const blurred = new cv.Mat();
   const canny = new cv.Mat();
   const cannyClosed = new cv.Mat();
-  const lab = new cv.Mat();
-  const mask = new cv.Mat();
-  const closed = new cv.Mat();
-  const kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(11, 11));
   const cannyKernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(7, 7));
 
   try {
-    // Treat the outer rim as background, then segment the object that differs
-    // from it. This avoids searching every texture and printed edge in the photo.
-    cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
     cv.GaussianBlur(gray, blurred, new cv.Size(7, 7), 0, 0, cv.BORDER_DEFAULT);
     cv.Canny(blurred, canny, 45, 135);
     cv.morphologyEx(canny, cannyClosed, cv.MORPH_CLOSE, cannyKernel, new cv.Point(-1, -1), 2);
     cv.dilate(cannyClosed, cannyClosed, cannyKernel, new cv.Point(-1, -1), 1);
-    cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab);
-    mask.create(canvas.height, canvas.width, cv.CV_8UC1);
-    const borderSamples: number[][] = [[], [], []];
-    const rim = Math.max(4, Math.round(Math.min(canvas.width, canvas.height) * 0.035));
-    for (let y = 0; y < canvas.height; y += 3) {
-      for (let x = 0; x < canvas.width; x += 3) {
-        if (x >= rim && x < canvas.width - rim && y >= rim && y < canvas.height - rim) continue;
-        const offset = (y * canvas.width + x) * 3;
-        borderSamples[0].push(lab.data[offset]);
-        borderSamples[1].push(lab.data[offset + 1]);
-        borderSamples[2].push(lab.data[offset + 2]);
-      }
-    }
-    const median = (values: number[]) => values.sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
-    const background = borderSamples.map(median);
-    for (let pixel = 0; pixel < canvas.width * canvas.height; pixel += 1) {
-      const offset = pixel * 3;
-      const dl = lab.data[offset] - background[0];
-      const da = lab.data[offset + 1] - background[1];
-      const db = lab.data[offset + 2] - background[2];
-      mask.data[pixel] = Math.sqrt(dl * dl * 0.7 + da * da + db * db) > 24 ? 255 : 0;
-    }
-    cv.morphologyEx(mask, closed, cv.MORPH_OPEN, kernel, new cv.Point(-1, -1), 1);
-    cv.morphologyEx(closed, closed, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), 2);
 
     const imageArea = canvas.width * canvas.height;
     const hintCenter = hint
@@ -310,22 +278,15 @@ export async function detectDocumentCandidatesWithOpenCv(
     const contourCanny = analyzeForeground(cannyClosed, canny);
     const pairedLines = analyzeLinePairs(canny);
     const cannyDetection = toDetection(pairedLines && (!contourCanny || pairedLines.score > contourCanny.score) ? pairedLines : contourCanny);
-    const backgroundDetection = toDetection(analyzeForeground(closed, canny));
     const candidates: OpenCvCropCandidate[] = [];
     if (cannyDetection) candidates.push({ id: "canny", label: "Canny edges", detail: "Follows supported outer edges and reinforces long opposite line pairs, allowing for perspective.", detection: cannyDetection });
-    if (backgroundDetection) candidates.push({ id: "background", label: "Background contrast", detail: "Separates the main object from the color around the photo rim.", detection: backgroundDetection });
     return candidates;
   } finally {
     cannyKernel.delete();
-    kernel.delete();
-    closed.delete();
-    mask.delete();
-    lab.delete();
     cannyClosed.delete();
     canny.delete();
     blurred.delete();
     gray.delete();
-    rgb.delete();
     src.delete();
   }
 }

@@ -20,79 +20,11 @@ export type DetectionResult = {
 };
 
 export type CropCandidate = {
-  id: "canny" | "background" | "gradient" | "framing";
+  id: "canny";
   label: string;
   detail: string;
   detection: DetectionResult;
 };
-
-const AUTOMATIC_CROP_IDS = new Set<CropCandidate["id"]>(["canny", "background", "gradient"]);
-
-function normalizedCornerDistance(first: DetectionResult, second: DetectionResult) {
-  const aspectRatio = Math.max(0.1, (first.aspectRatio + second.aspectRatio) / 2);
-  const diagonal = Math.hypot(aspectRatio, 1);
-  return first.corners.reduce((sum, point, index) => {
-    const other = second.corners[index];
-    return sum + Math.hypot((point.x - other.x) * aspectRatio, point.y - other.y) / diagonal;
-  }, 0) / 4;
-}
-
-function detectionForCorners(corners: [Point, Point, Point, Point], aspectRatio: number): DetectionResult {
-  return {
-    corners: corners.map((point) => ({ ...point })) as [Point, Point, Point, Point],
-    confidence: 0,
-    found: false,
-    rotated: false,
-    aspectRatio,
-  };
-}
-
-/**
- * Pick a safe first suggestion instead of assuming one detector is always best.
- * Agreement matters because strong lines inside an ID (or another rectangle in
- * the scene) can look extremely convincing to any single detector.
- */
-export function prioritizeCropCandidates(
-  candidates: CropCandidate[],
-  hint?: [Point, Point, Point, Point],
-): CropCandidate[] {
-  const automatic = candidates.filter((candidate) => AUTOMATIC_CROP_IDS.has(candidate.id));
-  const plausible = automatic.filter((candidate) => candidate.detection.found && candidate.detection.confidence >= 0.58);
-  const hintDetection = hint && detectionForCorners(hint, automatic[0]?.detection.aspectRatio ?? 1);
-  const scored = automatic.map((candidate) => {
-    const peers = plausible.filter((peer) => peer.id !== candidate.id);
-    const agreement = peers.length
-      ? Math.max(...peers.map((peer) => Math.max(0, 1 - normalizedCornerDistance(candidate.detection, peer.detection) / 0.11)))
-      : 0;
-    const hintAgreement = hintDetection
-      ? Math.max(0, 1 - normalizedCornerDistance(candidate.detection, hintDetection) / 0.16)
-      : 0;
-    const score = candidate.detection.confidence * 0.72 + agreement * 0.22 + hintAgreement * 0.06;
-    return { candidate, score };
-  }).sort((first, second) => second.score - first.score);
-
-  const best = scored[0];
-  const closestPeerDistance = best
-    ? Math.min(...plausible.filter((peer) => peer.id !== best.candidate.id).map((peer) => normalizedCornerDistance(best.candidate.detection, peer.detection)), Infinity)
-    : Infinity;
-  const hasConsensus = closestPeerDistance <= 0.11;
-  const isDecisive = Boolean(best?.candidate.detection.found) && (
-    hasConsensus ||
-    (plausible.length === 1 && best.candidate.detection.confidence >= 0.78)
-  );
-
-  const framing = candidates.find((candidate) => candidate.id === "framing") ?? {
-    id: "framing" as const,
-    label: "Manual review",
-    detail: "The detectors disagreed, so no uncertain rectangle was applied automatically.",
-    detection: detectionForCorners(hint ?? DEFAULT_CORNERS, automatic[0]?.detection.aspectRatio ?? 1),
-  };
-  const remaining = candidates.filter((candidate) => candidate.id !== "framing" && !automatic.includes(candidate));
-  const rankedAutomatic = scored.map(({ candidate }) => candidate);
-  return isDecisive
-    ? [...rankedAutomatic, ...remaining, framing]
-    : [framing, ...rankedAutomatic, ...remaining];
-}
 
 export const DEFAULT_CORNERS: [Point, Point, Point, Point] = [
   { x: 0.06, y: 0.08 },
@@ -219,13 +151,6 @@ export async function detectDocument(source: Blob, hint?: [Point, Point, Point, 
   return candidates[0].detection;
 }
 
-const insetCorners = (insetX: number, insetY: number): [Point, Point, Point, Point] => [
-  { x: insetX, y: insetY },
-  { x: 1 - insetX, y: insetY },
-  { x: 1 - insetX, y: 1 - insetY },
-  { x: insetX, y: 1 - insetY },
-];
-
 export async function detectDocumentCandidates(source: Blob, hint?: [Point, Point, Point, Point]): Promise<CropCandidate[]> {
   const canvas = await sourceToCanvas(source, 960);
   let openCvCandidates: CropCandidate[] = [];
@@ -235,7 +160,6 @@ export async function detectDocumentCandidates(source: Blob, hint?: [Point, Poin
   } catch {
     // Continue with the lightweight on-device detector below.
   }
-  const fallback = await detectDocumentLegacy(source);
   const aspectRatio = canvas.width / canvas.height;
   const uncertain = (corners: [Point, Point, Point, Point]): DetectionResult => ({
     corners: corners.map((point) => ({ ...point })) as [Point, Point, Point, Point],
@@ -251,26 +175,7 @@ export async function detectDocumentCandidates(source: Blob, hint?: [Point, Poin
     detail: "No closed edge loop was strong enough, so this begins near the photographed card area.",
     detection: uncertain(hint ?? DEFAULT_CORNERS),
   };
-  const background = byId.get("background") ?? {
-    id: "background" as const,
-    label: "Background contrast",
-    detail: "A conservative inset based on the main area of the photo.",
-    detection: uncertain(insetCorners(0.1, 0.12)),
-  };
-  const gradient: CropCandidate = {
-    id: "gradient",
-    label: "Gradient regions",
-    detail: fallback.found ? "Groups strong brightness changes into the most likely centered card region." : "A wider fallback when connected gradients are uncertain.",
-    detection: fallback.found ? fallback : uncertain(insetCorners(0.055, 0.075)),
-  };
-  const candidates: CropCandidate[] = [canny, background, gradient];
-  if (hint) candidates.push({
-    id: "framing",
-    label: "Camera framing",
-    detail: "Uses the guide position visible when the photo was taken.",
-    detection: uncertain(hint),
-  });
-  return prioritizeCropCandidates(candidates, hint);
+  return [canny];
 }
 
 export async function detectDocumentLegacy(source: Blob): Promise<DetectionResult> {

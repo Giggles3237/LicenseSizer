@@ -5,7 +5,7 @@ export default function Home() {
     <main className="marketing-shell">
       <nav className="marketing-nav" aria-label="Main navigation">
         <a className="brand" href="#top" aria-label="LicenseResizer home"><span className="brand-mark" aria-hidden="true"><i /></span><span>License<span>Resizer</span></span></a>
-        <div className="marketing-nav-links"><a href="#how-it-works">How it works</a><a href="#privacy">Privacy</a><Link href="/sign-in">Sign in</Link><Link className="nav-cta" href="/sign-up">Start free trial <span aria-hidden="true">↗</span></Link></div>
+        <div className="marketing-nav-links"><a href="#how-it-works">How it works</a><a href="#privacy">Privacy</a><Link href="/sign-in">Sign in</Link><Link className="nav-cta" href="/sign-up" data-analytics="start-free-trial">Start free trial <span aria-hidden="true">↗</span></Link></div>
       </nav>
 
       <section className="marketing-hero" id="top">
@@ -13,7 +13,7 @@ export default function Home() {
           <p className="marketing-kicker"><span /> Built for modern dealerships</p>
           <h1>License collection,<br /><em>without the hassle.</em></h1>
           <p className="hero-lede">Give customers a branded link that turns a phone photo into a clean, correctly sized PDF—ready to send to your team in minutes.</p>
-          <div className="hero-actions"><Link className="primary marketing-primary" href="/sign-up">Start your free trial <span aria-hidden="true">→</span></Link><a className="text-cta" href="/capture">Try the customer experience <span aria-hidden="true">↗</span></a></div>
+          <div className="hero-actions"><Link className="primary marketing-primary" href="/sign-up" data-analytics="start-free-trial">Start your free trial <span aria-hidden="true">→</span></Link><a className="text-cta" href="/capture" data-analytics="try-customer-experience">Try the customer experience <span aria-hidden="true">↗</span></a></div>
           <div className="hero-proof" aria-label="Product benefits"><span><b>✓</b> No card required</span><span><b>✓</b> Setup in minutes</span><span><b>✓</b> Images never stored</span></div>
         </div>
 
@@ -42,7 +42,7 @@ export default function Home() {
 
       <section className="privacy-section" id="privacy"><div className="privacy-seal"><span>◉</span><small>ON-DEVICE<br />PROCESSING</small></div><div><p className="marketing-kicker light">Privacy is the product</p><h2>The license image never becomes our data.</h2></div><div><p>Photos and PDFs stay in volatile browser memory on the customer’s device. LicenseResizer stores dealership settings and minimal workflow events—not license images, names, filenames, or document content.</p><a href="/capture">See the experience <span>→</span></a></div></section>
 
-      <section className="final-cta"><p className="marketing-kicker">Make the next handoff easier</p><h2>Stop chasing license photos.</h2><p>Set up your dealership link and give every customer the same smooth, private experience.</p><Link className="primary marketing-primary" href="/sign-up">Start your free trial <span>→</span></Link><small>14 days free · No card required</small></section>
+      <section className="final-cta"><p className="marketing-kicker">Make the next handoff easier</p><h2>Stop chasing license photos.</h2><p>Set up your dealership link and give every customer the same smooth, private experience.</p><Link className="primary marketing-primary" href="/sign-up" data-analytics="start-free-trial">Start your free trial <span>→</span></Link><small>14 days free · No card required</small></section>
 
       <footer className="marketing-footer"><a className="brand" href="#top"><span className="brand-mark" aria-hidden="true"><i /></span><span>License<span>Resizer</span></span></a><p>Private document capture for dealerships.</p><div><a href="/capture">Product demo</a><Link href="/sign-in">Dealer sign in</Link><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="/terms">Terms</a><a href="/support">Support</a></div><small>© {new Date().getFullYear()} LicenseResizer. LicenseResizer resizes documents; it does not verify identity, authenticity, or delivery.</small></footer>
     </main>

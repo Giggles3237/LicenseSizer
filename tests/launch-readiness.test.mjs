@@ -80,6 +80,13 @@ test("product copy distinguishes handoff actions from confirmed delivery", async
   assert.doesNotMatch(marketing, /PDF delivered|Delivery opened|Your team receives/);
 });
 
+test("public marketing CTAs carry analytics attributes without tagging sign in", async () => {
+  const marketing = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.equal(marketing.match(/data-analytics="start-free-trial"/g)?.length, 3);
+  assert.equal(marketing.match(/data-analytics="try-customer-experience"/g)?.length, 1);
+  assert.match(marketing, /<Link href="\/sign-in">Sign in<\/Link>/);
+});
+
 test("trust center and guided launch checklist are present", async () => {
   const [dashboard, dashboardPage, privacy, terms, security, subprocessors, support] = await Promise.all([
     readFile(new URL("../app/dashboard/dashboard-client.tsx", import.meta.url), "utf8"),

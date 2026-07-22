@@ -135,24 +135,6 @@ button { color: inherit; }
 .photo-toolbar button:hover { color: var(--navy); background: #fff; box-shadow: 0 2px 10px rgba(18,63,85,.08); }
 .photo-toolbar button span { color: var(--teal-dark); font-size: 16px; font-weight: 500; }
 .photo-toolbar button:disabled { cursor: wait; opacity: .5; }
-.crop-candidate-picker { display: block; margin: 14px 0 20px; }
-.candidate-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 9px; }
-.candidate-heading div { display: flex; flex-direction: column; }
-.candidate-heading strong { color: var(--navy); font-size: 12px; letter-spacing: .02em; }
-.candidate-heading div span { margin-top: 2px; color: var(--muted); font-size: 10px; }
-.candidate-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 7px; padding: 6px; border: 1px solid #d7e1e2; border-radius: 15px; background: #f2f6f5; }
-.candidate-options button { position: relative; min-width: 0; min-height: 78px; display: grid; grid-template-columns: 34px minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; column-gap: 9px; padding: 10px; border: 1px solid transparent; border-radius: 11px; color: #52636a; background: transparent; text-align: left; cursor: pointer; transition: color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease; }
-.candidate-frame { grid-row: 1 / 3; align-self: center; width: 34px; height: 24px; display: grid; place-items: center; border: 1px solid #aebdbe; border-radius: 4px; background: rgba(255,255,255,.65); }
-.candidate-frame i { width: 22px; height: 14px; border: 1px solid currentColor; border-radius: 2px; transform: rotate(-2deg); }
-.candidate-options strong { overflow: hidden; color: inherit; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.candidate-options small { margin-top: 2px; color: #829095; font-size: 9px; }
-.candidate-options b { position: absolute; right: 8px; top: 7px; color: #88a9a2; font-size: 7px; letter-spacing: .08em; text-transform: uppercase; }
-.candidate-options button:hover { color: var(--navy); background: rgba(255,255,255,.72); }
-.candidate-options button.active { color: #fff; background: linear-gradient(145deg, #153f51, #0d3040); box-shadow: 0 7px 18px rgba(12,48,64,.2); transform: translateY(-1px); }
-.candidate-options button.active small { color: rgba(255,255,255,.67); }
-.candidate-options button.active b { color: #75d2c1; }
-.candidate-options button.active .candidate-frame { border-color: rgba(255,255,255,.35); color: #77dfca; background: rgba(255,255,255,.08); }
-.candidate-options button:focus-visible { outline: 3px solid #f2a94b; outline-offset: 2px; }
 .crop-stage { position: relative; overflow: hidden; max-width: 100%; margin-inline: auto; display: grid; place-items: center; border-radius: 13px; background: #17252c; touch-action: none; user-select: none; }
 .crop-stage > img { width: 100%; height: 100%; display: block; object-fit: cover; pointer-events: none; }
 .crop-selection { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; pointer-events: none; }
@@ -345,7 +327,6 @@ footer details p { max-width: 650px; margin: 10px auto; line-height: 1.6; }
   .capture-choices { grid-template-columns: 1fr; }
   .choice-card { min-height: 135px; }
   .panel-heading { gap: 12px; }
-  .candidate-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .crop-stage { min-height: 210px; }
   .development-controls { grid-template-columns: 1fr; }
   .development-controls p { grid-column: auto; }
