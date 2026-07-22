@@ -1,7 +1,10 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-const authenticatedProxy = clerkMiddleware();
+// Pass the sign-in/sign-up URLs explicitly: in the Next 16 proxy runtime the
+// NEXT_PUBLIC_CLERK_* env fallbacks are not reliably populated, which makes
+// auth.protect() redirect back to the current URL in an endless reload loop.
+const authenticatedProxy = clerkMiddleware({ signInUrl: "/sign-in", signUpUrl: "/sign-up" });
 
 export default process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
   ? authenticatedProxy
