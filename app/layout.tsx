@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
-import { headers } from "next/headers";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const GTM_CONTAINER_ID = "GTM-KT4RJD74";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://licenseresizer.com";
 
-export async function generateMetadata(): Promise<Metadata> {
-  const requestHeaders = await headers();
-  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
-  const protocol = requestHeaders.get("x-forwarded-proto") ?? (host?.includes("localhost") ? "http" : "https");
-  const metadataBase = host ? new URL(`${protocol}://${host}`) : undefined;
+export function generateMetadata(): Metadata {
+  const metadataBase = new URL(SITE_URL);
   const title = "LicenseResizer — Private license collection for dealerships";
   const description = "Give customers a branded link to create and deliver clean, true-size driver's-license PDFs—without storing their license images.";
   return {
