@@ -16,11 +16,12 @@ export async function POST(request: Request) {
   const organization = await (await clerkClient()).organizations.getOrganization({ organizationId: session.orgId });
   const customerId = existing?.stripeCustomerId || (await stripe.customers.create({ name: organization.name, metadata: { organizationId: session.orgId } })).id;
   if (!existing) await saveBillingSubscription({ organizationId: session.orgId, stripeCustomerId: customerId, planType, monthlyPdfLimit: monthlyPdfLimitForPlan(planType) });
+  const trialDays = existing?.stripeSubscriptionId ? 0 : Math.max(0, Math.min(90, Number(process.env.STRIPE_TRIAL_DAYS || 14)));
+  const trialAnalyticsEligible = trialDays > 0 ? "true" : "false";
   const openCheckouts = await stripe.checkout.sessions.list({ customer: customerId, status: "open", limit: 10 });
   const currentCheckout = openCheckouts.data.find((session) => session.mode === "subscription" && session.url && session.metadata?.planType === planType && session.success_url?.includes("session_id={CHECKOUT_SESSION_ID}"));
   if (currentCheckout?.url) return Response.json({ url: currentCheckout.url });
   const origin = new URL(request.url).origin;
-  const trialDays = existing?.stripeSubscriptionId ? 0 : Math.max(0, Math.min(90, Number(process.env.STRIPE_TRIAL_DAYS || 14)));
   const checkout = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
         trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
       } : {}),
     },
-    metadata: { organizationId: session.orgId, planType },
+    metadata: { organizationId: session.orgId, planType, trialAnalyticsEligible },
     success_url: `${origin}/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/dashboard?checkout=cancelled`,
   });

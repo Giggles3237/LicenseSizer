@@ -54,6 +54,7 @@ export const billingSubscriptions = pgTable("billing_subscriptions", {
   status: text("status").notNull().default("checkout_pending"),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  trialStartedAnalyticsSent: boolean("trial_started_analytics_sent").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [

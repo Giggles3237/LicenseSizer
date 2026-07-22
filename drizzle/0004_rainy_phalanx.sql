@@ -1,0 +1,1 @@
+ALTER TABLE "billing_subscriptions" ADD COLUMN "trial_started_analytics_sent" boolean DEFAULT false NOT NULL;

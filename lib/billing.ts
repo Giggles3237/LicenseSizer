@@ -2,7 +2,7 @@ import "server-only";
 
 import type Stripe from "stripe";
 import StripeClient from "stripe";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { billingSubscriptions } from "../db/schema";
 
@@ -40,6 +40,17 @@ export async function saveBillingSubscription(values: typeof billingSubscription
     set: { ...values, updatedAt: new Date() },
   }).returning();
   return subscription;
+}
+
+export async function claimTrialStartedAnalyticsEvent(organizationId: string) {
+  const [subscription] = await getDb().update(billingSubscriptions)
+    .set({ trialStartedAnalyticsSent: true, updatedAt: new Date() })
+    .where(and(
+      eq(billingSubscriptions.organizationId, organizationId),
+      eq(billingSubscriptions.trialStartedAnalyticsSent, false),
+    ))
+    .returning();
+  return Boolean(subscription);
 }
 
 export function hasProductAccess(status?: string | null) {

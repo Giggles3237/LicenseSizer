@@ -3,11 +3,13 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("card-free trials cancel safely and reuse an open checkout", async () => {
-  const [checkout, dashboard, sync, billing, envExample] = await Promise.all([
+  const [checkout, dashboard, sync, billing, schema, migration, envExample] = await Promise.all([
     readFile(new URL("../app/api/admin/billing/checkout/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/dashboard/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/billing/sync/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/billing.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0004_rainy_phalanx.sql", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
   ]);
   assert.match(checkout, /payment_method_collection: trialDays \? "if_required" : "always"/);
@@ -17,12 +19,27 @@ test("card-free trials cancel safely and reuse an open checkout", async () => {
   assert.match(checkout, /priceIdForPlan\(planType\)/);
   assert.match(checkout, /success_url\?\.includes\("session_id=\{CHECKOUT_SESSION_ID\}"\)/);
   assert.match(checkout, /session_id=\{CHECKOUT_SESSION_ID\}/);
+  assert.match(checkout, /trialAnalyticsEligible = trialDays > 0 \? "true" : "false"/);
+  assert.match(checkout, /metadata: \{ organizationId: session\.orgId, planType, trialAnalyticsEligible \}/);
   assert.match(dashboard, /100 PDFs\/month/);
   assert.match(dashboard, /openBilling\("checkout", "individual"\)/);
   assert.match(dashboard, /checkout"\) !== "success"/);
+  assert.match(dashboard, /if \(payload\.trackTrialStarted\) pushTrialStartedEvent\(\)/);
+  assert.match(dashboard, /analyticsWindow\.dataLayer = analyticsWindow\.dataLayer \|\| \[\]/);
+  assert.match(dashboard, /analyticsWindow\.dataLayer\.push\(\{\s*event: "trial_started",\s*\}\)/);
+  const trialEventFunction = dashboard.match(/function pushTrialStartedEvent\(\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.doesNotMatch(trialEventFunction, /email|name|dealer|organization|orgId|userId|license/i);
   assert.match(dashboard, /\/api\/admin\/billing\/sync/);
   assert.match(sync, /checkout\.sessions\.retrieve\(sessionId\)/);
   assert.match(sync, /syncStripeSubscription/);
+  assert.match(sync, /checkout\.metadata\?\.trialAnalyticsEligible === "true"/);
+  assert.match(sync, /subscription\.status === "trialing"/);
+  assert.match(sync, /claimTrialStartedAnalyticsEvent\(session\.orgId\)/);
+  assert.match(sync, /trackTrialStarted/);
+  assert.match(billing, /claimTrialStartedAnalyticsEvent/);
+  assert.match(billing, /eq\(billingSubscriptions\.trialStartedAnalyticsSent, false\)/);
+  assert.match(schema, /trialStartedAnalyticsSent: boolean\("trial_started_analytics_sent"\)\.notNull\(\)\.default\(false\)/);
+  assert.match(migration, /ADD COLUMN "trial_started_analytics_sent" boolean DEFAULT false NOT NULL/);
   assert.match(billing, /INDIVIDUAL_MONTHLY_PDF_LIMIT = 100/);
   assert.match(envExample, /STRIPE_INDIVIDUAL_PRICE_ID/);
 });

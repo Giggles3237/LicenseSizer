@@ -17,7 +17,15 @@ type Billing = {
   usage: { allowed: boolean; used: number; limit: number | null; resetsAt: string };
   subscription: null | { status: string; planType: "individual" | "dealer"; monthlyPdfLimit: number | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean };
 };
-type BillingSync = { hasAccess: boolean; subscription: Billing["subscription"] };
+type BillingSync = { hasAccess: boolean; subscription: Billing["subscription"]; trackTrialStarted?: boolean };
+
+function pushTrialStartedEvent() {
+  const analyticsWindow = window as Window & { dataLayer?: Array<{ event: string }> };
+  analyticsWindow.dataLayer = analyticsWindow.dataLayer || [];
+  analyticsWindow.dataLayer.push({
+    event: "trial_started",
+  });
+}
 
 async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
   const contentType = response.headers.get("content-type") || "";
@@ -86,6 +94,8 @@ export default function DashboardClient({ canManage }: { canManage: boolean }) {
     if (params.get("checkout") !== "success") return;
     const sessionId = params.get("session_id");
     if (!sessionId) {
+      // The checkout callback synchronizes Stripe return URL state with this client view.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus("Trial checkout returned without a session id. Refresh once Stripe finishes updating the subscription.");
       setCheckoutSynced(true);
       return;
@@ -99,6 +109,7 @@ export default function DashboardClient({ canManage }: { canManage: boolean }) {
     }).then((response) => readApiResponse<BillingSync>(response, "Trial could not be activated. Please refresh or check billing."))
       .then((payload) => {
         setBilling((current) => current ? { ...current, hasAccess: payload.hasAccess, subscription: payload.subscription } : current);
+        if (payload.trackTrialStarted) pushTrialStartedEvent();
         window.history.replaceState(null, "", window.location.pathname);
         void load().then(() => setStatus(payload.hasAccess ? "Trial activated." : "Stripe returned checkout, but the subscription is not active yet. Refresh in a moment."));
       })

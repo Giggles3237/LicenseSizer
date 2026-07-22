@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { getStripe, hasProductAccess, syncStripeSubscription } from "../../../../../lib/billing";
+import { claimTrialStartedAnalyticsEvent, getStripe, hasProductAccess, syncStripeSubscription } from "../../../../../lib/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -15,5 +15,11 @@ export async function POST(request: Request) {
   if (typeof checkout.subscription !== "string") return Response.json({ error: "No subscription was found for this checkout session." }, { status: 404 });
 
   const subscription = await syncStripeSubscription(await stripe.subscriptions.retrieve(checkout.subscription));
-  return Response.json({ subscription, hasAccess: hasProductAccess(subscription?.status) });
+  const trackTrialStarted = Boolean(
+    subscription &&
+    checkout.metadata?.trialAnalyticsEligible === "true" &&
+    subscription.status === "trialing" &&
+    await claimTrialStartedAnalyticsEvent(session.orgId),
+  );
+  return Response.json({ subscription, hasAccess: hasProductAccess(subscription?.status), trackTrialStarted });
 }
