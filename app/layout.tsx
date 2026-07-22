@@ -27,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const appContent = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-    ? <ClerkProvider>{children}</ClerkProvider>
+    ? <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">{children}</ClerkProvider>
     : children;
 
   return (
