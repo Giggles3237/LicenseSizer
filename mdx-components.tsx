@@ -10,6 +10,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
       return <a href={href} rel="noreferrer" target="_blank" {...props}>{children}</a>;
     },
     LicenseResizerTrialCTA,
+    TrialCallout: LicenseResizerTrialCTA,
     ...components,
   };
 }

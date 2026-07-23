@@ -28,5 +28,7 @@ test("local MDX blog keeps production posts static and discoverable", async () =
   assert.match(postPage, /getRelatedBlogPosts/);
   assert.match(sitemap, /\/blog\/\$\{post\.slug\}/);
   assert.match(components, /LicenseResizerTrialCTA/);
+  assert.match(components, /TrialCallout: LicenseResizerTrialCTA/);
+  assert.match(cta, /buttonText/);
   assert.match(cta, /data-analytics="start-free-trial"/);
 });
