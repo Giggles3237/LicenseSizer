@@ -87,23 +87,22 @@ export async function detectDocumentCandidatesWithOpenCv(
   const cv = await loadOpenCv();
   const src = cv.imread(canvas);
   const gray = new cv.Mat();
-  const blurred = new cv.Mat();
-  const canny = new cv.Mat();
-  const cannyClosed = new cv.Mat();
-  const cannyKernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(7, 7));
 
   try {
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-    cv.GaussianBlur(gray, blurred, new cv.Size(7, 7), 0, 0, cv.BORDER_DEFAULT);
-    cv.Canny(blurred, canny, 45, 135);
-    cv.morphologyEx(canny, cannyClosed, cv.MORPH_CLOSE, cannyKernel, new cv.Point(-1, -1), 2);
-    cv.dilate(cannyClosed, cannyClosed, cannyKernel, new cv.Point(-1, -1), 1);
-
     const imageArea = canvas.width * canvas.height;
     const hintCenter = hint
       ? { x: hint.reduce((sum, point) => sum + point.x, 0) / 4, y: hint.reduce((sum, point) => sum + point.y, 0) / 4 }
       : { x: 0.5, y: 0.5 };
     type BestQuadrilateral = { points: [Point, Point, Point, Point]; score: number; confidence: number; rotated: boolean };
+    type CannyPass = { blur: number; low: number; high: number; kernel: number; close: number; dilate: number };
+    const cannyPasses: CannyPass[] = [
+      { blur: 7, low: 45, high: 135, kernel: 7, close: 2, dilate: 1 },
+      { blur: 5, low: 30, high: 95, kernel: 5, close: 2, dilate: 1 },
+      { blur: 5, low: 55, high: 165, kernel: 5, close: 1, dilate: 1 },
+      { blur: 9, low: 35, high: 110, kernel: 9, close: 2, dilate: 0 },
+      { blur: 3, low: 70, high: 210, kernel: 3, close: 1, dilate: 1 },
+    ];
     const edgeSupport = (points: [Point, Point, Point, Point], evidence: any) => {
       let supported = 0;
       let samples = 0;
@@ -275,17 +274,35 @@ export async function detectDocumentCandidatesWithOpenCv(
       rotated: best.rotated,
       aspectRatio: canvas.width / canvas.height,
     }) : null;
-    const contourCanny = analyzeForeground(cannyClosed, canny);
-    const pairedLines = analyzeLinePairs(canny);
-    const cannyDetection = toDetection(pairedLines && (!contourCanny || pairedLines.score > contourCanny.score) ? pairedLines : contourCanny);
+    let bestCanny: BestQuadrilateral | null = null;
+
+    for (const pass of cannyPasses) {
+      const blurred = new cv.Mat();
+      const canny = new cv.Mat();
+      const cannyClosed = new cv.Mat();
+      const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(pass.kernel, pass.kernel));
+      try {
+        cv.GaussianBlur(gray, blurred, new cv.Size(pass.blur, pass.blur), 0, 0, cv.BORDER_DEFAULT);
+        cv.Canny(blurred, canny, pass.low, pass.high);
+        cv.morphologyEx(canny, cannyClosed, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), pass.close);
+        if (pass.dilate > 0) cv.dilate(cannyClosed, cannyClosed, kernel, new cv.Point(-1, -1), pass.dilate);
+        const contourCanny = analyzeForeground(cannyClosed, canny);
+        const pairedLines = analyzeLinePairs(canny);
+        const passBest = pairedLines && (!contourCanny || pairedLines.score > contourCanny.score) ? pairedLines : contourCanny;
+        if (passBest && (!bestCanny || passBest.score > bestCanny.score)) bestCanny = passBest;
+      } finally {
+        kernel.delete();
+        cannyClosed.delete();
+        canny.delete();
+        blurred.delete();
+      }
+    }
+
+    const cannyDetection = toDetection(bestCanny);
     const candidates: OpenCvCropCandidate[] = [];
-    if (cannyDetection) candidates.push({ id: "canny", label: "Canny edges", detail: "Follows supported outer edges and reinforces long opposite line pairs, allowing for perspective.", detection: cannyDetection });
+    if (cannyDetection) candidates.push({ id: "canny", label: "Canny edges", detail: "Compares multiple edge passes, follows supported outer edges, and reinforces long opposite line pairs.", detection: cannyDetection });
     return candidates;
   } finally {
-    cannyKernel.delete();
-    cannyClosed.delete();
-    canny.delete();
-    blurred.delete();
     gray.delete();
     src.delete();
   }
