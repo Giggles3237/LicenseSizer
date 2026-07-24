@@ -1,10 +1,11 @@
 import Link from "next/link";
+import LicenseResizerBrand from "./brand-logo";
 
 export default function Home() {
   return (
     <main className="marketing-shell">
       <nav className="marketing-nav" aria-label="Main navigation">
-        <a className="brand" href="#top" aria-label="LicenseResizer home"><span className="brand-mark" aria-hidden="true"><i /></span><span>License<span>Resizer</span></span></a>
+        <LicenseResizerBrand href="#top" />
         <div className="marketing-nav-links"><a href="#how-it-works">How it works</a><a href="#privacy">Privacy</a><Link href="/sign-in">Sign in</Link><Link className="nav-cta" href="/sign-up" data-analytics="start-free-trial">Start free trial <span aria-hidden="true">↗</span></Link></div>
       </nav>
 
@@ -44,7 +45,7 @@ export default function Home() {
 
       <section className="final-cta"><p className="marketing-kicker">Make the next handoff easier</p><h2>Stop chasing license photos.</h2><p>Set up your dealership link and give every customer the same smooth, private experience.</p><Link className="primary marketing-primary" href="/sign-up" data-analytics="start-free-trial">Start your free trial <span>→</span></Link><small>14 days free · No card required</small></section>
 
-      <footer className="marketing-footer"><a className="brand" href="#top"><span className="brand-mark" aria-hidden="true"><i /></span><span>License<span>Resizer</span></span></a><p>Private document capture for dealerships.</p><div><a href="/capture">Product demo</a><Link href="/sign-in">Dealer sign in</Link><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="/terms">Terms</a><a href="/support">Support</a></div><small>© {new Date().getFullYear()} LicenseResizer. LicenseResizer resizes documents; it does not verify identity, authenticity, or delivery.</small></footer>
+      <footer className="marketing-footer"><LicenseResizerBrand href="#top" /><p>Private document capture for dealerships.</p><div><a href="/capture">Product demo</a><Link href="/sign-in">Dealer sign in</Link><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="/terms">Terms</a><a href="/support">Support</a></div><small>© {new Date().getFullYear()} LicenseResizer. LicenseResizer resizes documents; it does not verify identity, authenticity, or delivery.</small></footer>
     </main>
   );
 }

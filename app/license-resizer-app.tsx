@@ -7,6 +7,7 @@ import { cornersToEdgeLines, edgeLinesToCorners, type EdgeLine } from "../lib/do
 import { createDevelopmentAnalysisView, DEVELOPMENT_ANALYSIS_VIEWS, type DevelopmentAnalysisView } from "../lib/development-analysis";
 import type { PdfOptions } from "../lib/pdf";
 import { DEFAULT_DELIVERY_PROFILE, type ActivityEventType, type DealerDeliveryProfile } from "../lib/dealer";
+import LicenseResizerBrand from "./brand-logo";
 
 type Side = "front" | "back";
 type Stage = "start" | "capture" | "review" | "ready" | "complete";
@@ -22,6 +23,7 @@ type PdfQuota = { allowed: boolean; used: number; limit: number | null; resetsAt
 
 const sideLabel = (side: Side) => (side === "front" ? "front" : "back");
 const LINE_NAMES = ["Top", "Right", "Bottom", "Left"] as const;
+const MAX_UPLOADED_PDF_BYTES = 25 * 1024 * 1024;
 const pdfFilename = () => {
   const date = new Date();
   const year = date.getFullYear();
@@ -29,6 +31,7 @@ const pdfFilename = () => {
   const day = String(date.getDate()).padStart(2, "0");
   return `license-copy-${year}-${month}-${day}.pdf`;
 };
+const isPdfFile = (file: File) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 
 async function rotateImageClockwise(source: Blob): Promise<Blob> {
   const input = await sourceToCanvas(source);
@@ -97,6 +100,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   const [message, setMessage] = useState("");
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [pdfUrl, setPdfUrl] = useState("");
+  const [pdfDownloadName, setPdfDownloadName] = useState("");
   const [developmentOpen, setDevelopmentOpen] = useState(false);
   const [analysisView, setAnalysisView] = useState<DevelopmentAnalysisView>("contour-skin");
   const [analysisUrl, setAnalysisUrl] = useState("");
@@ -191,6 +195,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     setBack(null);
     setPdfBlob(null);
     setPdfUrl("");
+    setPdfDownloadName("");
     setActiveSide("front");
     setMessage("");
     setStage("start");
@@ -300,10 +305,26 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     }
   };
 
+  const preparePdfDraft = async (file: File) => {
+    setBusy(true);
+    setMessage("Rendering the first PDF page for cropping on this device…");
+    try {
+      if (file.size > MAX_UPLOADED_PDF_BYTES) throw new Error("This PDF is larger than 25 MB. Choose a smaller file.");
+      const { renderPdfFirstPageToImage } = await import("../lib/pdf-rendering");
+      const renderedPage = await renderPdfFirstPageToImage(file);
+      await prepareDraft(renderedPage);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "That PDF could not be prepared for cropping.");
+      setBusy(false);
+    }
+  };
+
   const chooseFile = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (file) void prepareDraft(file);
+    if (!file) return;
+    if (isPdfFile(file)) void preparePdfDraft(file);
+    else void prepareDraft(file);
   };
 
   const capturePhoto = () => {
@@ -483,6 +504,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
       if (pdfUrl) URL.revokeObjectURL(pdfUrl);
       setPdfBlob(pdf);
       setPdfUrl(URL.createObjectURL(pdf));
+      setPdfDownloadName(pdfFilename());
       setStage("complete");
       setMessage("");
     } catch (error) {
@@ -494,7 +516,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
 
   const sharePdf = async () => {
     if (!pdfBlob) return;
-    const file = new File([pdfBlob], pdfFilename(), { type: "application/pdf" });
+    const file = new File([pdfBlob], pdfDownloadName || pdfFilename(), { type: "application/pdf" });
     if (typeof navigator.share !== "function" || typeof navigator.canShare !== "function" || !navigator.canShare({ files: [file] })) return;
     try {
       const destination = deliveryEmail ? `\n\nRequested destination: ${deliveryEmail}` : "";
@@ -512,7 +534,8 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     catch { setCopiedDestination(`Copy ${value} before opening the share sheet.`); }
   };
 
-  const canShare = Boolean(typeof navigator !== "undefined" && pdfBlob && typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [new File([pdfBlob], pdfFilename(), { type: "application/pdf" })] }));
+  const canShare = Boolean(typeof navigator !== "undefined" && pdfBlob && typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [new File([pdfBlob], pdfDownloadName || pdfFilename(), { type: "application/pdf" })] }));
+  const activePdfFilename = pdfDownloadName || pdfFilename();
   const cropCorners = edgeLinesToCorners(edgeLines);
   const cropLines = edgeLines.map((line) => {
     const dx = (line.end.x - line.start.x) * 100;
@@ -530,10 +553,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
             <span>{deliveryProfile.dealerName}</span>
           </a>
         ) : (
-          <a className="brand" href="#top" aria-label="LicenseResizer home">
-            <span className="brand-mark" aria-hidden="true"><i /></span>
-            <span>License<span>Resizer</span></span>
-          </a>
+          <LicenseResizerBrand href="#top" />
         )}
         <div className="header-actions">{!deliveryProfile.publicSlug && <a className="dealer-link" href="/dashboard">Dealer console</a>}<div className="privacy-pill"><span /> Processed on this device</div></div>
       </header>
@@ -581,17 +601,17 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
                   <span>{cameraReady ? "Hold steady—we’ll refine the edges next" : "Camera access remains on this device"}</span>
                 </div>
                 <div className="camera-actions">
-                  <button className="gallery-shortcut" onClick={() => fileRef.current?.click()}><span aria-hidden="true">▧</span> Photos</button>
+                  <button className="gallery-shortcut" onClick={() => fileRef.current?.click()}><span aria-hidden="true">▧</span> Files</button>
                   <button className="shutter" onClick={capturePhoto} disabled={!cameraReady} aria-label="Take photo"><span /></button>
                   <span className="action-spacer" />
                 </div>
               </div>
             ) : (
               <div className="capture-choices">
-                <button className="choice-card choice-card-wide" onClick={() => fileRef.current?.click()}><span className="choice-icon upload-icon" aria-hidden="true">↑</span><strong>Add photo</strong><small>Use the camera, photo library, or files on this device</small></button>
+                <button className="choice-card choice-card-wide" onClick={() => fileRef.current?.click()}><span className="choice-icon upload-icon" aria-hidden="true">↑</span><strong>Add photo or PDF</strong><small>Use the camera, photo library, or files on this device</small></button>
               </div>
             )}
-            <input ref={fileRef} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={chooseFile} />
+            <input ref={fileRef} className="visually-hidden" type="file" accept="image/*,application/pdf,.pdf" onChange={chooseFile} />
             <button className="back-link" onClick={() => {
               if (activeSide === "front" && !front) setStage("start");
               else { setActiveSide("front"); setStage("ready"); }
@@ -660,16 +680,16 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
         {stage === "complete" && pdfUrl && (
           <div className="panel complete-panel">
             <div className="success-mark" aria-hidden="true">OK</div><span className="step-kicker">Ready to share</span><h1>Your PDF is prepared</h1><p>Your true-size copy is ready on this device. Copy a destination if needed, then share the attached PDF.</p>
-            <div className="file-card"><div className="pdf-badge">PDF</div><div><a className="pdf-filename-link" href={pdfUrl} download={pdfFilename()} onClick={() => postActivity("pdf_downloaded", "download")}>{pdfFilename()}</a><span>{options.pageSize === "letter" ? "US Letter" : "A4"} - True-size card placement</span></div></div>
+            <div className="file-card"><div className="pdf-badge">PDF</div><div><a className="pdf-filename-link" href={pdfUrl} download={activePdfFilename} onClick={() => postActivity("pdf_downloaded", "download")}>{activePdfFilename}</a><span>{options.pageSize === "letter" ? "US Letter" : "A4"} - True-size card placement</span></div></div>
             <div className="delivery-card simplified"><div><span className="step-kicker">Send to</span><strong>{deliveryProfile.publicSlug ? deliveryProfile.destinationName : "Your recipient"}</strong></div><div className="destination-list">{deliveryEmail && <div className="destination-value"><span>Email</span><code>{deliveryEmail}</code><button className="text-button" type="button" onClick={() => void copyDestination(deliveryEmail, "Email")}>Copy</button></div>}{deliveryPhone && <div className="destination-value"><span>Text</span><code>{deliveryPhone}</code><button className="text-button" type="button" onClick={() => void copyDestination(deliveryPhone, "Text")}>Copy</button></div>}</div>{copiedDestination && <span className="copy-status" role="status">{copiedDestination}</span>}</div>
-            <div className="complete-actions">{canShare && <button className="primary large" onClick={sharePdf}>Share <span aria-hidden="true">↗</span></button>}<a className={canShare ? "secondary download" : "primary large download"} href={pdfUrl} download={pdfFilename()} onClick={() => postActivity("pdf_downloaded", "download")}>Download PDF <span aria-hidden="true">↓</span></a></div>
+            <div className="complete-actions">{canShare && <button className="primary large" onClick={sharePdf}>Share <span aria-hidden="true">↗</span></button>}<a className={canShare ? "secondary download" : "primary large download"} href={pdfUrl} download={activePdfFilename} onClick={() => postActivity("pdf_downloaded", "download")}>Download PDF <span aria-hidden="true">↓</span></a></div>
             <button className="clear-button" onClick={startOver}>Start over & clear images</button>
           </div>
         )}
       </section>
 
       <footer>
-        <details><summary>Privacy details</summary><p>Photos are processed locally in volatile browser memory. They are not sent to LicenseResizer. Downloaded and shared files are controlled by your browser, device, and chosen destination. Starting over removes the app’s references to your session.</p></details>
+        <details><summary>Privacy details</summary><p>Photos and PDFs are processed locally in volatile browser memory. They are not sent to LicenseResizer. Downloaded and shared files are controlled by your browser, device, and chosen destination. Starting over removes the app’s references to your session.</p></details>
         <nav className="product-legal-links" aria-label="Legal and support"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a><a href="/support">Support</a></nav>
         <p>LicenseResizer creates a resized copy. It does not verify identity or document authenticity.</p>
       </footer>

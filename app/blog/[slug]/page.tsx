@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
+import LicenseResizerBrand from "../../brand-logo";
 import LicenseResizerTrialCTA from "../trial-cta";
 import { useMDXComponents } from "../../../mdx-components";
 import { absoluteUrl, formatBlogDate, getAllBlogPosts, getBlogPost, getRelatedBlogPosts } from "../../../lib/blog";
@@ -71,7 +72,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   return (
     <main className="blog-shell">
       <header className="blog-header">
-        <Link className="brand" href="/"><span className="brand-mark" aria-hidden="true"><i /></span><span>License<span>Resizer</span></span></Link>
+        <LicenseResizerBrand />
         <nav aria-label="Blog navigation"><Link href="/blog">Blog</Link><Link href="/capture">Demo</Link><Link href="/sign-in">Sign in</Link></nav>
       </header>
 

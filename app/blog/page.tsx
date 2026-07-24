@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import LicenseResizerBrand from "../brand-logo";
 import { absoluteUrl, formatBlogDate, getAllBlogPosts } from "../../lib/blog";
 import LicenseResizerTrialCTA from "./trial-cta";
 
@@ -23,7 +24,7 @@ export default async function BlogIndexPage() {
   return (
     <main className="blog-shell">
       <header className="blog-header">
-        <Link className="brand" href="/"><span className="brand-mark" aria-hidden="true"><i /></span><span>License<span>Resizer</span></span></Link>
+        <LicenseResizerBrand />
         <nav aria-label="Blog navigation"><Link href="/">Home</Link><Link href="/capture">Demo</Link><Link href="/sign-in">Sign in</Link></nav>
       </header>
 

@@ -248,6 +248,11 @@ test("crop review uses the Canny suggestion and retains endpoint handles without
   assert.doesNotMatch(component, /role="radiogroup" aria-label="Framing options"/);
   assert.doesNotMatch(component, /candidate-options|chooseCropCandidate/);
   assert.match(component, /Rotate photo 90 degrees clockwise/);
+  assert.match(component, /accept="image\/\*,application\/pdf,\.pdf"/);
+  assert.match(component, /Add photo or PDF/);
+  assert.match(component, /preparePdfDraft/);
+  assert.match(component, /renderPdfFirstPageToImage/);
+  assert.match(component, /isPdfFile/);
   assert.doesNotMatch(component, /rotateAdjusted/);
   assert.match(component, /Back is always optional/);
   assert.doesNotMatch(component, /Capture required back/);

@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { CreateOrganization, OrganizationSwitcher, SignOutButton, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
+import LicenseResizerBrand from "../brand-logo";
 import DashboardClient from "./dashboard-client";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export default async function DashboardPage() {
   const user = await currentUser();
   const userLabel = user?.fullName || user?.primaryEmailAddress?.emailAddress || "Account";
   return <main className="admin-shell">
-    <header className="admin-topbar"><Link className="brand" href="/"><span className="brand-mark" aria-hidden="true"><i /></span><span>License<span>Resizer</span></span></Link><div className="admin-account"><span className="signed-in-as"><small>Signed in as</small><strong>{userLabel}</strong></span><SignOutButton redirectUrl="/"><button className="text-button account-sign-out" type="button">Log out</button></SignOutButton><OrganizationSwitcher afterSelectOrganizationUrl="/dashboard" /><UserButton /></div></header>
+    <header className="admin-topbar"><LicenseResizerBrand /><div className="admin-account"><span className="signed-in-as"><small>Signed in as</small><strong>{userLabel}</strong></span><SignOutButton redirectUrl="/"><button className="text-button account-sign-out" type="button">Log out</button></SignOutButton><OrganizationSwitcher afterSelectOrganizationUrl="/dashboard" /><UserButton /></div></header>
     <DashboardClient canManage={session.orgRole === "org:admin"} />
   </main>;
 }
