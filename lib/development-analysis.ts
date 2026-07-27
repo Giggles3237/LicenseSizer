@@ -8,8 +8,8 @@ export const DEVELOPMENT_ANALYSIS_VIEWS = [
   { id: "grayscale", label: "Grayscale", detail: "Luminance-only image used by edge detectors." },
   { id: "gaussian-blur", label: "Gaussian blur", detail: "Noise-reduced grayscale experiment before edge detection." },
   { id: "background-mask", label: "Background difference mask", detail: "Pixels whose Lab color differs from the outer rim of the photo." },
-  { id: "cleaned-mask", label: "Cleaned foreground mask", detail: "The actual mask searched by the primary document detector after open/close morphology." },
-  { id: "canny", label: "Canny edges", detail: "An experimental thin edge map after Gaussian blur." },
+  { id: "cleaned-mask", label: "Cleaned foreground mask", detail: "The Lab background-separation signal searched by the combined production detector after open/close morphology." },
+  { id: "canny", label: "Canny edges", detail: "One of the edge maps used by the combined production detector after Gaussian blur." },
   { id: "sobel", label: "Sobel edge strength", detail: "Gradient strength used by the lightweight fallback detector." },
   { id: "dilated-edges", label: "Thresholded + dilated edges", detail: "Connected edge regions used by the lightweight fallback detector." },
   { id: "contour-skin", label: "Contour skin", detail: "Contours extracted from the cleaned foreground mask, drawn as a wireframe." },
@@ -84,7 +84,7 @@ export async function createDevelopmentAnalysisView(
     cv.GaussianBlur(gray, blurred, new cv.Size(7, 7), 0, 0, cv.BORDER_DEFAULT);
     cv.Canny(blurred, canny, 55, 150);
 
-    // Keep this segmentation in lockstep with detectDocumentWithOpenCv.
+    // Keep this segmentation aligned with the production Lab foreground signal.
     cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab);
     mask.create(canvas.height, canvas.width, cv.CV_8UC1);
     const borderSamples: number[][] = [[], [], []];
@@ -105,7 +105,7 @@ export async function createDevelopmentAnalysisView(
       const dl = lab.data[offset] - background[0];
       const da = lab.data[offset + 1] - background[1];
       const db = lab.data[offset + 2] - background[2];
-      mask.data[pixel] = Math.sqrt(dl * dl * 0.7 + da * da + db * db) > 24 ? 255 : 0;
+      mask.data[pixel] = Math.sqrt(dl * dl * 0.7 + da * da + db * db) > 22 ? 255 : 0;
     }
     cv.morphologyEx(mask, cleaned, cv.MORPH_OPEN, morphologyKernel, new cv.Point(-1, -1), 1);
     cv.morphologyEx(cleaned, cleaned, cv.MORPH_CLOSE, morphologyKernel, new cv.Point(-1, -1), 2);

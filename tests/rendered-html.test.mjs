@@ -9,6 +9,56 @@ import { cornersToEdgeLines, edgeLinesToCorners, extendLineToBounds, orderDocume
 
 const root = new URL("../", import.meta.url);
 
+async function prepareOpenCvCanvas(width, height, background) {
+  globalThis.window ??= { cv: await Promise.resolve((await import("@techstark/opencv-js")).default) };
+  globalThis.HTMLImageElement ??= class HTMLImageElement {};
+  globalThis.HTMLCanvasElement ??= class HTMLCanvasElement {};
+  globalThis.ImageData ??= class ImageData {
+    constructor(data, imageWidth, imageHeight) { this.data = data; this.width = imageWidth; this.height = imageHeight; }
+  };
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    pixels[offset] = background[0];
+    pixels[offset + 1] = background[1];
+    pixels[offset + 2] = background[2];
+    pixels[offset + 3] = 255;
+  }
+  const canvas = new globalThis.HTMLCanvasElement();
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext = () => ({ getImageData: () => new globalThis.ImageData(pixels, width, height) });
+  return { canvas, pixels };
+}
+
+function paintQuadrilateral(pixels, width, height, corners, color) {
+  const cross = (first, second, point) =>
+    (second.x - first.x) * (point.y - first.y) - (second.y - first.y) * (point.x - first.x);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const point = { x, y };
+      const signs = corners.map((corner, index) => cross(corner, corners[(index + 1) % corners.length], point));
+      if (!(signs.every((value) => value >= 0) || signs.every((value) => value <= 0))) continue;
+      const offset = (y * width + x) * 4;
+      pixels[offset] = color[0];
+      pixels[offset + 1] = color[1];
+      pixels[offset + 2] = color[2];
+    }
+  }
+}
+
+function normalizedCorners(corners, width, height) {
+  return corners.map((point) => ({ x: point.x / width, y: point.y / height }));
+}
+
+function meanCornerError(actual, expected) {
+  const orderedActual = orderDocumentPoints(actual);
+  const orderedExpected = orderDocumentPoints(expected);
+  return orderedActual.reduce(
+    (sum, point, index) => sum + Math.hypot(point.x - orderedExpected[index].x, point.y - orderedExpected[index].y),
+    0,
+  ) / 4;
+}
+
 test("contains the LicenseResizer customer workflow and production metadata", async () => {
   const [app, layout] = await Promise.all([
     readFile(new URL("../app/license-resizer-app.tsx", import.meta.url), "utf8"),
@@ -172,6 +222,56 @@ test("Canny uses portrait pixel geometry and rejects larger shapes touching the 
   assert.ok((canny?.corners[0].x ?? 0) > 0.05, "crop should not attach to the left photo boundary");
   assert.ok((canny?.corners[0].y ?? 0) > 0.3, "crop should reject the stronger top-frame distractor");
   assert.ok(Math.abs((canny?.corners[2].y ?? 0) - 715 / height) < 0.05);
+});
+
+test("detector benchmark handles low contrast, color separation, and guide ambiguity", async () => {
+  const fixtures = [];
+
+  {
+    const width = 720;
+    const height = 480;
+    const { canvas, pixels } = await prepareOpenCvCanvas(width, height, [104, 107, 109]);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const offset = (y * width + x) * 4;
+        const shade = Math.round(12 * (x / width) + 8 * (y / height));
+        pixels[offset] += shade; pixels[offset + 1] += shade; pixels[offset + 2] += shade;
+      }
+    }
+    const corners = [{ x: 112, y: 92 }, { x: 612, y: 112 }, { x: 586, y: 394 }, { x: 132, y: 372 }];
+    paintQuadrilateral(pixels, width, height, corners, [145, 147, 146]);
+    fixtures.push({ canvas, expected: normalizedCorners(corners, width, height) });
+  }
+
+  {
+    const width = 680;
+    const height = 460;
+    const { canvas, pixels } = await prepareOpenCvCanvas(width, height, [72, 42, 45]);
+    const corners = [{ x: 96, y: 78 }, { x: 590, y: 62 }, { x: 612, y: 352 }, { x: 118, y: 370 }];
+    paintQuadrilateral(pixels, width, height, corners, [62, 126, 144]);
+    fixtures.push({ canvas, expected: normalizedCorners(corners, width, height) });
+  }
+
+  {
+    const width = 760;
+    const height = 520;
+    const { canvas, pixels } = await prepareOpenCvCanvas(width, height, [31, 35, 38]);
+    const distractor = [{ x: 24, y: 34 }, { x: 354, y: 34 }, { x: 354, y: 248 }, { x: 24, y: 248 }];
+    const corners = [{ x: 258, y: 176 }, { x: 704, y: 190 }, { x: 680, y: 454 }, { x: 242, y: 434 }];
+    paintQuadrilateral(pixels, width, height, distractor, [218, 218, 214]);
+    paintQuadrilateral(pixels, width, height, corners, [174, 198, 212]);
+    const expected = normalizedCorners(corners, width, height);
+    fixtures.push({ canvas, expected, guide: expected });
+  }
+
+  const results = [];
+  for (const fixture of fixtures) {
+    const detection = await detectDocumentWithOpenCv(fixture.canvas, fixture.guide);
+    results.push({ found: detection?.found ?? false, error: detection ? meanCornerError(detection.corners, fixture.expected) : 1 });
+  }
+  assert.ok(results.filter((result) => result.found).length >= 2, JSON.stringify(results));
+  assert.ok(results.reduce((sum, result) => sum + result.error, 0) / results.length < 0.055, JSON.stringify(results));
+  assert.ok(results[2].error < 0.04, "the camera guide should disambiguate the intended card");
 });
 
 test("OpenCV perspective correction maps exact manual corners to a rectangle", async () => {

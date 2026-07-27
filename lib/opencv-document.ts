@@ -94,7 +94,13 @@ export async function detectDocumentCandidatesWithOpenCv(
     const hintCenter = hint
       ? { x: hint.reduce((sum, point) => sum + point.x, 0) / 4, y: hint.reduce((sum, point) => sum + point.y, 0) / 4 }
       : { x: 0.5, y: 0.5 };
-    type BestQuadrilateral = { points: [Point, Point, Point, Point]; score: number; confidence: number; rotated: boolean };
+    type BestQuadrilateral = {
+      points: [Point, Point, Point, Point];
+      score: number;
+      confidence: number;
+      rotated: boolean;
+      signal: "canny-contour" | "canny-lines" | "equalized-contour" | "equalized-lines" | "lab-foreground";
+    };
     type CannyPass = { blur: number; low: number; high: number; kernel: number; close: number; dilate: number };
     const cannyPasses: CannyPass[] = [
       { blur: 7, low: 45, high: 135, kernel: 7, close: 2, dilate: 1 },
@@ -106,8 +112,11 @@ export async function detectDocumentCandidatesWithOpenCv(
     const edgeSupport = (points: [Point, Point, Point, Point], evidence: any) => {
       let supported = 0;
       let samples = 0;
+      const edgeRatios: number[] = [];
       const radius = Math.max(2, Math.round(Math.min(canvas.width, canvas.height) * 0.004));
       for (let edge = 0; edge < 4; edge += 1) {
+        let edgeSupported = 0;
+        let edgeSamples = 0;
         const start = points[edge];
         const end = points[(edge + 1) % 4];
         const sampleCount = Math.max(24, Math.round(distance(start, end) * Math.max(canvas.width, canvas.height) / 12));
@@ -125,12 +134,24 @@ export async function detectDocumentCandidatesWithOpenCv(
             }
           }
           supported += Number(hit);
+          edgeSupported += Number(hit);
           samples += 1;
+          edgeSamples += 1;
         }
+        edgeRatios.push(edgeSupported / Math.max(1, edgeSamples));
       }
-      return supported / Math.max(1, samples);
+      return {
+        average: supported / Math.max(1, samples),
+        minimum: Math.min(...edgeRatios),
+      };
     };
-    const scoreQuadrilateral = (points: [Point, Point, Point, Point], evidence: any): BestQuadrilateral | null => {
+    const cornerDistance = (first: [Point, Point, Point, Point], second: [Point, Point, Point, Point]) =>
+      first.reduce((sum, point, index) => sum + Math.hypot(point.x - second[index].x, point.y - second[index].y), 0) / 4;
+    const scoreQuadrilateral = (
+      points: [Point, Point, Point, Point],
+      evidence: any,
+      signal: BestQuadrilateral["signal"],
+    ): BestQuadrilateral | null => {
       const pixelDistance = (first: Point, second: Point) => Math.hypot(
         (first.x - second.x) * canvas.width,
         (first.y - second.y) * canvas.height,
@@ -147,6 +168,9 @@ export async function detectDocumentCandidatesWithOpenCv(
       const areaScore = Math.min(1, normalizedArea / 0.34);
       const center = { x: points.reduce((sum, point) => sum + point.x, 0) / 4, y: points.reduce((sum, point) => sum + point.y, 0) / 4 };
       const centerScore = Math.max(0, 1 - Math.hypot(center.x - hintCenter.x, center.y - hintCenter.y) / 0.55);
+      const guideCornerScore = hint
+        ? Math.max(0, 1 - cornerDistance(points, orderDocumentPoints(hint)) / 0.22)
+        : centerScore;
       const topBottomAngle = radiansBetween(segmentAngle(points[0], points[1]), segmentAngle(points[3], points[2]));
       const leftRightAngle = radiansBetween(segmentAngle(points[0], points[3]), segmentAngle(points[1], points[2]));
       const parallelScore = (
@@ -154,15 +178,18 @@ export async function detectDocumentCandidatesWithOpenCv(
         Math.max(0, 1 - leftRightAngle / (Math.PI / 7))
       ) / 2;
       const lengthSymmetry = Math.max(0, 1 - Math.abs(top - bottom) / Math.max(top, bottom) - Math.abs(left - right) / Math.max(left, right));
-      const boundaryScore = edgeSupport(points, evidence);
+      const edgeScores = edgeSupport(points, evidence);
+      const boundaryScore = edgeScores.average * 0.7 + edgeScores.minimum * 0.3;
       const frameClearance = Math.min(...points.flatMap((point) => [point.x, point.y, 1 - point.x, 1 - point.y]));
       const frameScore = Math.max(0, Math.min(1, frameClearance / 0.025));
-      const confidence = areaScore * 0.13 + ratioScore * 0.23 + centerScore * 0.1 + parallelScore * 0.16 + lengthSymmetry * 0.08 + boundaryScore * 0.2 + frameScore * 0.1;
+      const confidence = hint
+        ? areaScore * 0.1 + ratioScore * 0.18 + centerScore * 0.05 + guideCornerScore * 0.25 + parallelScore * 0.13 + lengthSymmetry * 0.06 + boundaryScore * 0.15 + frameScore * 0.08
+        : areaScore * 0.13 + ratioScore * 0.23 + centerScore * 0.1 + parallelScore * 0.16 + lengthSymmetry * 0.08 + boundaryScore * 0.2 + frameScore * 0.1;
       const score = confidence * (0.78 + areaScore * 0.22) * (0.35 + frameScore * 0.65);
-      return { points, score, confidence, rotated: verticalCard(points) };
+      return { points, score, confidence, rotated: verticalCard(points), signal };
     };
-    const analyzeForeground = (input: any, evidence: any) => {
-      let best: { points: [Point, Point, Point, Point]; score: number; confidence: number; rotated: boolean } | null = null;
+    const analyzeForeground = (input: any, evidence: any, signal: BestQuadrilateral["signal"]) => {
+      let best: BestQuadrilateral | null = null;
       const contours = new cv.MatVector();
       const hierarchy = new cv.Mat();
       try {
@@ -188,7 +215,7 @@ export async function detectDocumentCandidatesWithOpenCv(
                   });
                 }
                 const ordered = orderDocumentPoints(raw);
-                const scored = scoreQuadrilateral(ordered, evidence);
+                const scored = scoreQuadrilateral(ordered, evidence, signal);
                 if (scored && (!best || scored.score > best.score)) best = scored;
               } finally {
                 approximation.delete();
@@ -206,7 +233,7 @@ export async function detectDocumentCandidatesWithOpenCv(
       return best;
     };
 
-    const analyzeLinePairs = (evidence: any): BestQuadrilateral | null => {
+    const analyzeLinePairs = (evidence: any, signal: BestQuadrilateral["signal"]): BestQuadrilateral | null => {
       const lines = new cv.Mat();
       try {
         const minimumDimension = Math.min(canvas.width, canvas.height);
@@ -224,7 +251,7 @@ export async function detectDocumentCandidatesWithOpenCv(
             midpoint: { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 },
           });
         }
-        const strongest = segments.sort((first, second) => second.length - first.length).slice(0, 22);
+        const strongest = segments.sort((first, second) => second.length - first.length).slice(0, 40);
         const pairs: Array<{ first: typeof strongest[number]; second: typeof strongest[number]; angle: number; score: number }> = [];
         for (let firstIndex = 0; firstIndex < strongest.length; firstIndex += 1) {
           for (let secondIndex = firstIndex + 1; secondIndex < strongest.length; secondIndex += 1) {
@@ -257,7 +284,7 @@ export async function detectDocumentCandidatesWithOpenCv(
             ];
             if (intersections.some((point) => !point || point.x < -0.08 || point.x > 1.08 || point.y < -0.08 || point.y > 1.08)) continue;
             const ordered = orderDocumentPoints(intersections as Point[]);
-            const scored = scoreQuadrilateral(ordered, evidence);
+            const scored = scoreQuadrilateral(ordered, evidence, signal);
             if (scored && (!best || scored.score > best.score)) best = scored;
           }
         }
@@ -267,16 +294,45 @@ export async function detectDocumentCandidatesWithOpenCv(
       }
     };
 
-    const toDetection = (best: { points: [Point, Point, Point, Point]; confidence: number; rotated: boolean } | null): DetectionResult | null => best ? ({
+    const rankCandidates = (rawCandidates: BestQuadrilateral[]) => {
+      const unique: BestQuadrilateral[] = [];
+      for (const candidate of rawCandidates.sort((first, second) => second.score - first.score)) {
+        const duplicate = unique.find((existing) => existing.signal === candidate.signal && cornerDistance(existing.points, candidate.points) < 0.025);
+        if (!duplicate) unique.push(candidate);
+      }
+      const ranked = unique.map((candidate) => {
+        const agreeingSignals = new Set(
+          unique
+            .filter((other) => cornerDistance(candidate.points, other.points) < 0.065)
+            .map((other) => other.signal),
+        ).size;
+        const agreement = Math.min(1, agreeingSignals / 3);
+        return { candidate, agreement, rank: candidate.score * (0.82 + agreement * 0.18) };
+      }).sort((first, second) => second.rank - first.rank);
+      const winner = ranked[0];
+      if (!winner) return null;
+      const runnerUp = ranked.find((entry) => cornerDistance(winner.candidate.points, entry.candidate.points) >= 0.055);
+      const margin = runnerUp
+        ? Math.max(0, Math.min(1, (winner.rank - runnerUp.rank) / 0.12))
+        : 1;
+      return {
+        ...winner.candidate,
+        confidence: Math.max(0, Math.min(1, winner.candidate.confidence * (0.84 + winner.agreement * 0.1 + margin * 0.06))),
+        ambiguous: Boolean(runnerUp) && margin < 0.22,
+      };
+    };
+    const toDetection = (best: (BestQuadrilateral & { ambiguous: boolean }) | null): DetectionResult | null => best ? ({
       corners: best.points,
       confidence: best.confidence,
-      found: best.confidence >= 0.58,
+      found: best.confidence >= 0.64 && !best.ambiguous,
       rotated: best.rotated,
       aspectRatio: canvas.width / canvas.height,
     }) : null;
-    let bestCanny: BestQuadrilateral | null = null;
+    const rawCandidates: BestQuadrilateral[] = [];
+    let primaryEdges: any = null;
 
-    for (const pass of cannyPasses) {
+    for (let passIndex = 0; passIndex < cannyPasses.length; passIndex += 1) {
+      const pass = cannyPasses[passIndex];
       const blurred = new cv.Mat();
       const canny = new cv.Mat();
       const cannyClosed = new cv.Mat();
@@ -286,10 +342,11 @@ export async function detectDocumentCandidatesWithOpenCv(
         cv.Canny(blurred, canny, pass.low, pass.high);
         cv.morphologyEx(canny, cannyClosed, cv.MORPH_CLOSE, kernel, new cv.Point(-1, -1), pass.close);
         if (pass.dilate > 0) cv.dilate(cannyClosed, cannyClosed, kernel, new cv.Point(-1, -1), pass.dilate);
-        const contourCanny = analyzeForeground(cannyClosed, canny);
-        const pairedLines = analyzeLinePairs(canny);
-        const passBest = pairedLines && (!contourCanny || pairedLines.score > contourCanny.score) ? pairedLines : contourCanny;
-        if (passBest && (!bestCanny || passBest.score > bestCanny.score)) bestCanny = passBest;
+        if (passIndex === 0) primaryEdges = canny.clone();
+        const contourCanny = analyzeForeground(cannyClosed, canny, "canny-contour");
+        const pairedLines = analyzeLinePairs(canny, "canny-lines");
+        if (contourCanny) rawCandidates.push(contourCanny);
+        if (pairedLines) rawCandidates.push(pairedLines);
       } finally {
         kernel.delete();
         cannyClosed.delete();
@@ -298,9 +355,76 @@ export async function detectDocumentCandidatesWithOpenCv(
       }
     }
 
-    const cannyDetection = toDetection(bestCanny);
+    const equalized = new cv.Mat();
+    const equalizedBlurred = new cv.Mat();
+    const equalizedEdges = new cv.Mat();
+    const equalizedClosed = new cv.Mat();
+    const equalizedKernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5));
+    try {
+      cv.equalizeHist(gray, equalized);
+      cv.GaussianBlur(equalized, equalizedBlurred, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
+      cv.Canny(equalizedBlurred, equalizedEdges, 45, 140);
+      cv.morphologyEx(equalizedEdges, equalizedClosed, cv.MORPH_CLOSE, equalizedKernel, new cv.Point(-1, -1), 2);
+      const equalizedContour = analyzeForeground(equalizedClosed, equalizedEdges, "equalized-contour");
+      const equalizedLines = analyzeLinePairs(equalizedEdges, "equalized-lines");
+      if (equalizedContour) rawCandidates.push(equalizedContour);
+      if (equalizedLines) rawCandidates.push(equalizedLines);
+    } finally {
+      equalizedKernel.delete();
+      equalizedClosed.delete();
+      equalizedEdges.delete();
+      equalizedBlurred.delete();
+      equalized.delete();
+    }
+
+    const rgb = new cv.Mat();
+    const lab = new cv.Mat();
+    const foregroundMask = new cv.Mat();
+    const cleanedMask = new cv.Mat();
+    const foregroundKernel = cv.getStructuringElement(
+      cv.MORPH_ELLIPSE,
+      new cv.Size(Math.max(5, Math.round(Math.min(canvas.width, canvas.height) * 0.012) | 1), Math.max(5, Math.round(Math.min(canvas.width, canvas.height) * 0.012) | 1)),
+    );
+    try {
+      cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
+      cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab);
+      foregroundMask.create(canvas.height, canvas.width, cv.CV_8UC1);
+      const rim = Math.max(4, Math.round(Math.min(canvas.width, canvas.height) * 0.035));
+      const samples: number[][] = [[], [], []];
+      for (let y = 0; y < canvas.height; y += 4) {
+        for (let x = 0; x < canvas.width; x += 4) {
+          if (x >= rim && x < canvas.width - rim && y >= rim && y < canvas.height - rim) continue;
+          const offset = (y * canvas.width + x) * 3;
+          samples[0].push(lab.data[offset]);
+          samples[1].push(lab.data[offset + 1]);
+          samples[2].push(lab.data[offset + 2]);
+        }
+      }
+      const median = (values: number[]) => values.sort((first, second) => first - second)[Math.floor(values.length / 2)] ?? 0;
+      const background = samples.map(median);
+      for (let pixel = 0; pixel < canvas.width * canvas.height; pixel += 1) {
+        const offset = pixel * 3;
+        const dl = lab.data[offset] - background[0];
+        const da = lab.data[offset + 1] - background[1];
+        const db = lab.data[offset + 2] - background[2];
+        foregroundMask.data[pixel] = Math.sqrt(dl * dl * 0.7 + da * da + db * db) > 22 ? 255 : 0;
+      }
+      cv.morphologyEx(foregroundMask, cleanedMask, cv.MORPH_OPEN, foregroundKernel, new cv.Point(-1, -1), 1);
+      cv.morphologyEx(cleanedMask, cleanedMask, cv.MORPH_CLOSE, foregroundKernel, new cv.Point(-1, -1), 2);
+      const foreground = analyzeForeground(cleanedMask, primaryEdges ?? foregroundMask, "lab-foreground");
+      if (foreground) rawCandidates.push(foreground);
+    } finally {
+      foregroundKernel.delete();
+      cleanedMask.delete();
+      foregroundMask.delete();
+      lab.delete();
+      rgb.delete();
+      primaryEdges?.delete();
+    }
+
+    const cannyDetection = toDetection(rankCandidates(rawCandidates));
     const candidates: OpenCvCropCandidate[] = [];
-    if (cannyDetection) candidates.push({ id: "canny", label: "Canny edges", detail: "Compares multiple edge passes, follows supported outer edges, and reinforces long opposite line pairs.", detection: cannyDetection });
+    if (cannyDetection) candidates.push({ id: "canny", label: "Combined edge detection", detail: "Combines grayscale, contrast-normalized, background-segmentation, contour, and line evidence.", detection: cannyDetection });
     return candidates;
   } finally {
     gray.delete();

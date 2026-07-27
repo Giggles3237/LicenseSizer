@@ -4,11 +4,26 @@ export type EdgeLine = { start: Point; end: Point };
 
 export function orderDocumentPoints(points: Point[]): [Point, Point, Point, Point] {
   if (points.length !== 4) throw new Error("Four card corners are required.");
-  const topLeft = points.reduce((best, point) => point.x + point.y < best.x + best.y ? point : best);
-  const bottomRight = points.reduce((best, point) => point.x + point.y > best.x + best.y ? point : best);
-  const topRight = points.reduce((best, point) => point.x - point.y > best.x - best.y ? point : best);
-  const bottomLeft = points.reduce((best, point) => point.x - point.y < best.x - best.y ? point : best);
-  return [topLeft, topRight, bottomRight, bottomLeft];
+  const center = {
+    x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+    y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
+  };
+  const ordered = points
+    .map((point) => ({ ...point }))
+    .sort((first, second) =>
+      Math.atan2(first.y - center.y, first.x - center.x) -
+      Math.atan2(second.y - center.y, second.x - center.x));
+  const signedArea = ordered.reduce((sum, point, index) => {
+    const next = ordered[(index + 1) % ordered.length];
+    return sum + point.x * next.y - next.x * point.y;
+  }, 0);
+  if (signedArea < 0) ordered.reverse();
+  const topLeftIndex = ordered.reduce(
+    (best, point, index) => point.x + point.y < ordered[best].x + ordered[best].y ? index : best,
+    0,
+  );
+  const rotated = ordered.map((_, index) => ordered[(topLeftIndex + index) % ordered.length]);
+  return rotated as [Point, Point, Point, Point];
 }
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
