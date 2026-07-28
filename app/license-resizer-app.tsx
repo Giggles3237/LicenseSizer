@@ -3,7 +3,7 @@
 import { ChangeEvent, KeyboardEvent, PointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { analyzeImage, correctPerspective, DEFAULT_CORNERS, detectDocumentCandidates, DetectionResult, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry";
-import { cornersToEdgeLines, edgeLinesToCorners, type EdgeLine } from "../lib/document-geometry";
+import { cornersToEdgeLines, coveredViewportCornersToSource, edgeLinesToCorners, type EdgeLine } from "../lib/document-geometry";
 import { createDevelopmentAnalysisView, DEVELOPMENT_ANALYSIS_VIEWS, type DevelopmentAnalysisView } from "../lib/development-analysis";
 import type { PdfOptions } from "../lib/pdf";
 import { DEFAULT_DELIVERY_PROFILE, type ActivityEventType, type DealerDeliveryProfile } from "../lib/dealer";
@@ -15,6 +15,7 @@ type CapturedSide = {
   source: Blob;
   sourceUrl: string;
   sourceAspect: number;
+  cropAspect: number;
   corrected: Blob;
   correctedUrl: string;
   corners: [Point, Point, Point, Point];
@@ -94,6 +95,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   const [quality, setQuality] = useState<QualityResult | null>(null);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
   const [draftAspect, setDraftAspect] = useState(1.333);
+  const [draftSourceAspect, setDraftSourceAspect] = useState(1.333);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -295,6 +297,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
       setQuality(qualityResult);
       setDetection(detectionResult);
       setDraftAspect(detectionResult.aspectRatio);
+      setDraftSourceAspect(detectionResult.aspectRatio);
       setEdgeLines(cornersToEdgeLines(detectionResult.corners));
       setStage("review");
       setMessage("");
@@ -350,9 +353,18 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     setMessage("Rotating the photo…");
     try {
       const rotated = await rotateImageClockwise(draft);
-      await prepareDraft(rotated);
+      const rotatedUrl = URL.createObjectURL(rotated);
+      if (draftUrl) URL.revokeObjectURL(draftUrl);
+      releaseAnalysisView();
+      setDevelopmentOpen(false);
+      setDraft(rotated);
+      setDraftUrl(rotatedUrl);
+      setDraftSourceAspect(1 / draftSourceAspect);
+      setDetection(null);
+      setMessage("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to rotate the photo.");
+    } finally {
       setBusy(false);
     }
   };
@@ -426,22 +438,24 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
 
   const acceptCrop = async () => {
     if (!draft) return;
-    const corners = edgeLinesToCorners(edgeLines);
-    if (!corners) {
+    const viewportCorners = edgeLinesToCorners(edgeLines);
+    if (!viewportCorners) {
       setMessage("Adjust the line ends so all four sides meet around the license.");
       return;
     }
+    const sourceCorners = coveredViewportCornersToSource(viewportCorners, draftAspect, draftSourceAspect);
     setBusy(true);
     setMessage("Straightening and refining your image…");
     try {
-      const corrected = await correctPerspective(draft, corners, "high");
+      const corrected = await correctPerspective(draft, sourceCorners, "high");
       const item: CapturedSide = {
         source: draft,
         sourceUrl: draftUrl,
-        sourceAspect: draftAspect,
+        sourceAspect: draftSourceAspect,
+        cropAspect: draftAspect,
         corrected,
         correctedUrl: URL.createObjectURL(corrected),
-        corners: corners.map((point) => ({ ...point })) as [Point, Point, Point, Point],
+        corners: viewportCorners.map((point) => ({ ...point })) as [Point, Point, Point, Point],
       };
       if (activeSide === "front") {
         if (front) { URL.revokeObjectURL(front.sourceUrl); URL.revokeObjectURL(front.correctedUrl); }
@@ -473,9 +487,11 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     setActiveSide(side);
     setDraft(item.source);
     setDraftUrl(URL.createObjectURL(item.source));
-    setDraftAspect(item.sourceAspect);
+    setDraftAspect(item.cropAspect);
+    setDraftSourceAspect(item.sourceAspect);
     setEdgeLines(cornersToEdgeLines(item.corners));
-    const savedDetection: DetectionResult = { corners: item.corners, confidence: 1, found: true, rotated: false, aspectRatio: item.sourceAspect };
+    const sourceCorners = coveredViewportCornersToSource(item.corners, item.cropAspect, item.sourceAspect);
+    const savedDetection: DetectionResult = { corners: sourceCorners, confidence: 1, found: true, rotated: false, aspectRatio: item.sourceAspect };
     setDetection(savedDetection);
     setQuality(null);
     setMessage("");

@@ -28,6 +28,32 @@ export function orderDocumentPoints(points: Point[]): [Point, Point, Point, Poin
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
 
+/**
+ * Maps a point in a fixed crop viewport to the source image when the image is
+ * rendered with object-fit: cover.
+ */
+export function coveredViewportPointToSource(point: Point, viewportAspect: number, sourceAspect: number): Point {
+  if (sourceAspect > viewportAspect) {
+    const visibleWidth = viewportAspect / sourceAspect;
+    return { x: (1 - visibleWidth) / 2 + point.x * visibleWidth, y: point.y };
+  }
+  if (sourceAspect < viewportAspect) {
+    const visibleHeight = sourceAspect / viewportAspect;
+    return { x: point.x, y: (1 - visibleHeight) / 2 + point.y * visibleHeight };
+  }
+  return { ...point };
+}
+
+export function coveredViewportCornersToSource(
+  corners: [Point, Point, Point, Point],
+  viewportAspect: number,
+  sourceAspect: number,
+): [Point, Point, Point, Point] {
+  return corners.map((point) =>
+    coveredViewportPointToSource(point, viewportAspect, sourceAspect),
+  ) as [Point, Point, Point, Point];
+}
+
 export function cornersToEdgeLines(corners: [Point, Point, Point, Point]): [EdgeLine, EdgeLine, EdgeLine, EdgeLine] {
   const ordered = orderDocumentPoints(corners);
   return ordered.map((point, index) => {

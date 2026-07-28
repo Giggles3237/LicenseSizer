@@ -5,7 +5,7 @@ import { CARD_HEIGHT_POINTS, CARD_WIDTH_POINTS, cardPlacement } from "../lib/pdf
 import { orientDocumentCorners } from "../lib/image-processing.ts";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry.ts";
 import { detectDocumentCandidatesWithOpenCv, detectDocumentWithOpenCv, warpDocumentWithOpenCv } from "../lib/opencv-document.ts";
-import { cornersToEdgeLines, edgeLinesToCorners, extendLineToBounds, orderDocumentPoints, squareToQuadrilateral } from "../lib/document-geometry.ts";
+import { cornersToEdgeLines, coveredViewportPointToSource, edgeLinesToCorners, extendLineToBounds, orderDocumentPoints, squareToQuadrilateral } from "../lib/document-geometry.ts";
 
 const root = new URL("../", import.meta.url);
 
@@ -224,6 +224,15 @@ test("Canny uses portrait pixel geometry and rejects larger shapes touching the 
   assert.ok(Math.abs((canny?.corners[2].y ?? 0) - 715 / height) < 0.05);
 });
 
+test("maps a fixed crop viewport through a covered image after rotation", () => {
+  const viewportAspect = 4 / 3;
+  const rotatedSourceAspect = 3 / 4;
+  const top = coveredViewportPointToSource({ x: 0.5, y: 0 }, viewportAspect, rotatedSourceAspect);
+  const bottom = coveredViewportPointToSource({ x: 0.5, y: 1 }, viewportAspect, rotatedSourceAspect);
+  assert.deepEqual(top, { x: 0.5, y: 0.21875 });
+  assert.deepEqual(bottom, { x: 0.5, y: 0.78125 });
+});
+
 test("detector benchmark handles low contrast, color separation, and guide ambiguity", async () => {
   const fixtures = [];
 
@@ -348,6 +357,8 @@ test("crop review uses the Canny suggestion and retains endpoint handles without
   assert.doesNotMatch(component, /role="radiogroup" aria-label="Framing options"/);
   assert.doesNotMatch(component, /candidate-options|chooseCropCandidate/);
   assert.match(component, /Rotate photo 90 degrees clockwise/);
+  assert.match(component, /setDraftSourceAspect\(1 \/ draftSourceAspect\)/);
+  assert.doesNotMatch(component, /const rotated = await rotateImageClockwise\(draft\);\s*await prepareDraft\(rotated\)/);
   assert.match(component, /accept="image\/\*,application\/pdf,\.pdf"/);
   assert.match(component, /Add photo or PDF/);
   assert.match(component, /preparePdfDraft/);
