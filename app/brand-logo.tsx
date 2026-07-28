@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function LicenseResizerBrand({
   href = "/",
@@ -13,7 +14,7 @@ export default function LicenseResizerBrand({
 
   return (
     <Link className={classes} href={href} aria-label={label}>
-      <img className="brand-logo" src="/LicenseResizerLogo.png" alt="" />
+      <Image className="brand-logo" src="/LicenseResizerLogo.webp" width={384} height={384} alt="" priority />
       <span className="sr-only">LicenseResizer</span>
     </Link>
   );

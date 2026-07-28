@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
   if (!post) return {};
 
   const canonical = absoluteUrl(`/blog/${post.slug}`);
-  const image = post.image || "/og.png";
+  const image = post.image || "/og.jpg";
 
   return {
     title: `${post.title} - LicenseResizer Blog`,
@@ -50,6 +50,8 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   if (!post) notFound();
 
   const related = await getRelatedBlogPosts(post.slug);
+  // MDX names this factory like a hook, but it only returns the server-side component map.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const mdxComponents = useMDXComponents({});
   const canonical = absoluteUrl(`/blog/${post.slug}`);
   const jsonLd = {
@@ -60,7 +62,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     datePublished: post.publishedAt,
     dateModified: post.updatedAt || post.publishedAt,
     author: { "@type": "Person", name: post.author },
-    image: post.image ? absoluteUrl(post.image) : absoluteUrl("/og.png"),
+    image: post.image ? absoluteUrl(post.image) : absoluteUrl("/og.jpg"),
     mainEntityOfPage: canonical,
     publisher: {
       "@type": "Organization",

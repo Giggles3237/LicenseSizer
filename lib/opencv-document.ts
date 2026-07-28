@@ -55,6 +55,79 @@ const averageParallelAngle = (first: number, second: number) => {
   return angle < 0 ? angle + Math.PI : angle;
 };
 
+export type LineSegment = {
+  line: [Point, Point];
+  length: number;
+  angle: number;
+  midpoint: Point;
+};
+
+const createLineSegment = (line: [Point, Point]): LineSegment => ({
+  line,
+  length: distance(line[0], line[1]),
+  angle: ((segmentAngle(line[0], line[1]) % Math.PI) + Math.PI) % Math.PI,
+  midpoint: { x: (line[0].x + line[1].x) / 2, y: (line[0].y + line[1].y) / 2 },
+});
+
+/** Joins collinear edge fragments that are separated by text, glare, or rounded corners. */
+export function mergeCollinearSegments(input: LineSegment[]): LineSegment[] {
+  const segments = input.map((segment) => createLineSegment([
+    { ...segment.line[0] },
+    { ...segment.line[1] },
+  ]));
+  let changed = true;
+  let passes = 0;
+  while (changed && passes < 4) {
+    changed = false;
+    passes += 1;
+    const merged: LineSegment[] = [];
+    for (const segment of segments.sort((first, second) => second.length - first.length)) {
+      const matchIndex = merged.findIndex((existing) => {
+        if (radiansBetween(existing.angle, segment.angle) > Math.PI / 30) return false;
+        const angle = averageParallelAngle(existing.angle, segment.angle);
+        const normal = { x: -Math.sin(angle), y: Math.cos(angle) };
+        const separation = Math.abs(
+          (existing.midpoint.x - segment.midpoint.x) * normal.x +
+          (existing.midpoint.y - segment.midpoint.y) * normal.y
+        );
+        if (separation > 0.022) return false;
+        const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+        const interval = (candidate: LineSegment) => {
+          const values = candidate.line.map((point) => point.x * direction.x + point.y * direction.y);
+          return [Math.min(...values), Math.max(...values)] as const;
+        };
+        const firstInterval = interval(existing);
+        const secondInterval = interval(segment);
+        const gap = Math.max(firstInterval[0], secondInterval[0]) - Math.min(firstInterval[1], secondInterval[1]);
+        return gap < 0.11;
+      });
+      if (matchIndex < 0) {
+        merged.push(segment);
+        continue;
+      }
+      const existing = merged[matchIndex];
+      const angle = averageParallelAngle(existing.angle, segment.angle);
+      const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+      const normal = { x: -direction.y, y: direction.x };
+      const points = [...existing.line, ...segment.line];
+      const projections = points.map((point) => point.x * direction.x + point.y * direction.y);
+      const normalOffset = (
+        existing.midpoint.x * normal.x + existing.midpoint.y * normal.y +
+        segment.midpoint.x * normal.x + segment.midpoint.y * normal.y
+      ) / 2;
+      const start = Math.min(...projections);
+      const end = Math.max(...projections);
+      merged[matchIndex] = createLineSegment([
+        { x: direction.x * start + normal.x * normalOffset, y: direction.y * start + normal.y * normalOffset },
+        { x: direction.x * end + normal.x * normalOffset, y: direction.y * end + normal.y * normalOffset },
+      ]);
+      changed = true;
+    }
+    segments.splice(0, segments.length, ...merged);
+  }
+  return segments;
+}
+
 function lineIntersection(first: [Point, Point], second: [Point, Point]): Point | null {
   const [a, b] = first;
   const [c, d] = second;
@@ -87,9 +160,14 @@ export async function detectDocumentCandidatesWithOpenCv(
   const cv = await loadOpenCv();
   const src = cv.imread(canvas);
   const gray = new cv.Mat();
+  const rgb = new cv.Mat();
+  const lab = new cv.Mat();
+  let primaryEdges: any = null;
 
   try {
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
+    cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab);
     const imageArea = canvas.width * canvas.height;
     const hintCenter = hint
       ? { x: hint.reduce((sum, point) => sum + point.x, 0) / 4, y: hint.reduce((sum, point) => sum + point.y, 0) / 4 }
@@ -99,7 +177,7 @@ export async function detectDocumentCandidatesWithOpenCv(
       score: number;
       confidence: number;
       rotated: boolean;
-      signal: "canny-contour" | "canny-lines" | "equalized-contour" | "equalized-lines" | "lab-foreground";
+      signal: "canny-contour" | "canny-lines" | "equalized-contour" | "equalized-lines" | "lab-foreground" | "bright-card";
     };
     type CannyPass = { blur: number; low: number; high: number; kernel: number; close: number; dilate: number };
     const cannyPasses: CannyPass[] = [
@@ -119,19 +197,21 @@ export async function detectDocumentCandidatesWithOpenCv(
         let edgeSamples = 0;
         const start = points[edge];
         const end = points[(edge + 1) % 4];
-        const sampleCount = Math.max(24, Math.round(distance(start, end) * Math.max(canvas.width, canvas.height) / 12));
+        const edgeDx = (end.x - start.x) * canvas.width;
+        const edgeDy = (end.y - start.y) * canvas.height;
+        const edgeLength = Math.max(1, Math.hypot(edgeDx, edgeDy));
+        const normal = { x: -edgeDy / edgeLength, y: edgeDx / edgeLength };
+        const sampleCount = Math.min(72, Math.max(24, Math.round(distance(start, end) * Math.max(canvas.width, canvas.height) / 12)));
         for (let sample = 0; sample <= sampleCount; sample += 1) {
           const progress = sample / sampleCount;
           const x = Math.round((start.x + (end.x - start.x) * progress) * (canvas.width - 1));
           const y = Math.round((start.y + (end.y - start.y) * progress) * (canvas.height - 1));
           let hit = false;
-          for (let offsetY = -radius; offsetY <= radius && !hit; offsetY += 1) {
-            for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
-              const sampleX = x + offsetX;
-              const sampleY = y + offsetY;
-              if (sampleX < 0 || sampleY < 0 || sampleX >= canvas.width || sampleY >= canvas.height) continue;
-              if (evidence.data[sampleY * canvas.width + sampleX] > 0) { hit = true; break; }
-            }
+          for (let search = -radius; search <= radius; search += 1) {
+            const sampleX = Math.round(x + normal.x * search);
+            const sampleY = Math.round(y + normal.y * search);
+            if (sampleX < 0 || sampleY < 0 || sampleX >= canvas.width || sampleY >= canvas.height) continue;
+            if (evidence.data[sampleY * canvas.width + sampleX] > 0) { hit = true; break; }
           }
           supported += Number(hit);
           edgeSupported += Number(hit);
@@ -143,6 +223,50 @@ export async function detectDocumentCandidatesWithOpenCv(
       return {
         average: supported / Math.max(1, samples),
         minimum: Math.min(...edgeRatios),
+      };
+    };
+    const boundaryContrast = (points: [Point, Point, Point, Point]) => {
+      const edgeContrasts: number[] = [];
+      const offset = Math.max(3, Math.round(Math.min(canvas.width, canvas.height) * 0.009));
+      const labDistance = (first: number, second: number) => {
+        const dl = lab.data[first] - lab.data[second];
+        const da = lab.data[first + 1] - lab.data[second + 1];
+        const db = lab.data[first + 2] - lab.data[second + 2];
+        return Math.sqrt(dl * dl * 0.7 + da * da + db * db);
+      };
+      for (let edge = 0; edge < 4; edge += 1) {
+        const start = points[edge];
+        const end = points[(edge + 1) % 4];
+        const dx = (end.x - start.x) * canvas.width;
+        const dy = (end.y - start.y) * canvas.height;
+        const length = Math.max(1, Math.hypot(dx, dy));
+        // orderDocumentPoints returns clockwise points in image coordinates,
+        // so the left-hand normal points into the quadrilateral.
+        const inward = { x: -dy / length, y: dx / length };
+        const samples: number[] = [];
+        for (let sample = 0; sample < 18; sample += 1) {
+          const progress = 0.12 + sample / 17 * 0.76;
+          const x = (start.x + (end.x - start.x) * progress) * (canvas.width - 1);
+          const y = (start.y + (end.y - start.y) * progress) * (canvas.height - 1);
+          const insideX = Math.round(x + inward.x * offset);
+          const insideY = Math.round(y + inward.y * offset);
+          const outsideX = Math.round(x - inward.x * offset);
+          const outsideY = Math.round(y - inward.y * offset);
+          if (
+            insideX < 0 || insideY < 0 || outsideX < 0 || outsideY < 0 ||
+            insideX >= canvas.width || outsideX >= canvas.width ||
+            insideY >= canvas.height || outsideY >= canvas.height
+          ) continue;
+          const insideOffset = (insideY * canvas.width + insideX) * 3;
+          const outsideOffset = (outsideY * canvas.width + outsideX) * 3;
+          samples.push(labDistance(insideOffset, outsideOffset));
+        }
+        edgeContrasts.push(samples.reduce((sum, value) => sum + value, 0) / Math.max(1, samples.length));
+      }
+      const normalized = edgeContrasts.map((value) => Math.max(0, Math.min(1, value / 52)));
+      return {
+        average: normalized.reduce((sum, value) => sum + value, 0) / Math.max(1, normalized.length),
+        minimum: Math.min(...normalized),
       };
     };
     const cornerDistance = (first: [Point, Point, Point, Point], second: [Point, Point, Point, Point]) =>
@@ -180,16 +304,26 @@ export async function detectDocumentCandidatesWithOpenCv(
       const lengthSymmetry = Math.max(0, 1 - Math.abs(top - bottom) / Math.max(top, bottom) - Math.abs(left - right) / Math.max(left, right));
       const edgeScores = edgeSupport(points, evidence);
       const boundaryScore = edgeScores.average * 0.7 + edgeScores.minimum * 0.3;
+      const contrastScores = boundaryContrast(points);
+      const contrastScore = contrastScores.average * 0.65 + contrastScores.minimum * 0.35;
       const frameClearance = Math.min(...points.flatMap((point) => [point.x, point.y, 1 - point.x, 1 - point.y]));
       const frameScore = Math.max(0, Math.min(1, frameClearance / 0.025));
       const confidence = hint
-        ? areaScore * 0.1 + ratioScore * 0.18 + centerScore * 0.05 + guideCornerScore * 0.25 + parallelScore * 0.13 + lengthSymmetry * 0.06 + boundaryScore * 0.15 + frameScore * 0.08
-        : areaScore * 0.13 + ratioScore * 0.23 + centerScore * 0.1 + parallelScore * 0.16 + lengthSymmetry * 0.08 + boundaryScore * 0.2 + frameScore * 0.1;
+        ? areaScore * 0.07 + ratioScore * 0.16 + centerScore * 0.04 + guideCornerScore * 0.23 + parallelScore * 0.11 + lengthSymmetry * 0.05 + boundaryScore * 0.14 + contrastScore * 0.12 + frameScore * 0.08
+        : areaScore * 0.09 + ratioScore * 0.2 + centerScore * 0.07 + parallelScore * 0.13 + lengthSymmetry * 0.06 + boundaryScore * 0.18 + contrastScore * 0.17 + frameScore * 0.1;
       const score = confidence * (0.78 + areaScore * 0.22) * (0.35 + frameScore * 0.65);
       return { points, score, confidence, rotated: verticalCard(points), signal };
     };
+    const strongestUnique = (candidates: BestQuadrilateral[], limit = 5) => {
+      const unique: BestQuadrilateral[] = [];
+      for (const candidate of candidates.sort((first, second) => second.score - first.score)) {
+        if (!unique.some((existing) => cornerDistance(existing.points, candidate.points) < 0.018)) unique.push(candidate);
+        if (unique.length >= limit) break;
+      }
+      return unique;
+    };
     const analyzeForeground = (input: any, evidence: any, signal: BestQuadrilateral["signal"]) => {
-      let best: BestQuadrilateral | null = null;
+      const candidates: BestQuadrilateral[] = [];
       const contours = new cv.MatVector();
       const hierarchy = new cv.Mat();
       try {
@@ -216,7 +350,7 @@ export async function detectDocumentCandidatesWithOpenCv(
                 }
                 const ordered = orderDocumentPoints(raw);
                 const scored = scoreQuadrilateral(ordered, evidence, signal);
-                if (scored && (!best || scored.score > best.score)) best = scored;
+                if (scored) candidates.push(scored);
               } finally {
                 approximation.delete();
               }
@@ -230,28 +364,23 @@ export async function detectDocumentCandidatesWithOpenCv(
         hierarchy.delete();
         contours.delete();
       }
-      return best;
+      return strongestUnique(candidates);
     };
 
-    const analyzeLinePairs = (evidence: any, signal: BestQuadrilateral["signal"]): BestQuadrilateral | null => {
+    const analyzeLinePairs = (evidence: any, signal: BestQuadrilateral["signal"]): BestQuadrilateral[] => {
       const lines = new cv.Mat();
       try {
         const minimumDimension = Math.min(canvas.width, canvas.height);
         cv.HoughLinesP(evidence, lines, 1, Math.PI / 180, Math.max(28, Math.round(minimumDimension * 0.1)), Math.round(minimumDimension * 0.16), Math.round(minimumDimension * 0.055));
-        const segments: Array<{ line: [Point, Point]; length: number; angle: number; midpoint: Point }> = [];
+        const segments: LineSegment[] = [];
         const lineCount = Math.floor(lines.data32S.length / 4);
         for (let row = 0; row < lineCount; row += 1) {
           const offset = row * 4;
           const first = { x: lines.data32S[offset] / canvas.width, y: lines.data32S[offset + 1] / canvas.height };
           const second = { x: lines.data32S[offset + 2] / canvas.width, y: lines.data32S[offset + 3] / canvas.height };
-          segments.push({
-            line: [first, second],
-            length: distance(first, second),
-            angle: ((segmentAngle(first, second) % Math.PI) + Math.PI) % Math.PI,
-            midpoint: { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 },
-          });
+          segments.push(createLineSegment([first, second]));
         }
-        const strongest = segments.sort((first, second) => second.length - first.length).slice(0, 40);
+        const strongest = mergeCollinearSegments(segments).sort((first, second) => second.length - first.length).slice(0, 60);
         const pairs: Array<{ first: typeof strongest[number]; second: typeof strongest[number]; angle: number; score: number }> = [];
         for (let firstIndex = 0; firstIndex < strongest.length; firstIndex += 1) {
           for (let secondIndex = firstIndex + 1; secondIndex < strongest.length; secondIndex += 1) {
@@ -268,8 +397,8 @@ export async function detectDocumentCandidatesWithOpenCv(
         }
         // Retain enough pairs to preserve both long horizontal edges and the
         // usually shorter vertical edges of a landscape ID card.
-        const strongestPairs = pairs.sort((first, second) => second.score - first.score).slice(0, 80);
-        let best: BestQuadrilateral | null = null;
+        const strongestPairs = pairs.sort((first, second) => second.score - first.score).slice(0, 48);
+        const candidates: BestQuadrilateral[] = [];
         for (let firstIndex = 0; firstIndex < strongestPairs.length; firstIndex += 1) {
           for (let secondIndex = firstIndex + 1; secondIndex < strongestPairs.length; secondIndex += 1) {
             const firstPair = strongestPairs[firstIndex];
@@ -285,10 +414,10 @@ export async function detectDocumentCandidatesWithOpenCv(
             if (intersections.some((point) => !point || point.x < -0.08 || point.x > 1.08 || point.y < -0.08 || point.y > 1.08)) continue;
             const ordered = orderDocumentPoints(intersections as Point[]);
             const scored = scoreQuadrilateral(ordered, evidence, signal);
-            if (scored && (!best || scored.score > best.score)) best = scored;
+            if (scored) candidates.push(scored);
           }
         }
-        return best;
+        return strongestUnique(candidates);
       } finally {
         lines.delete();
       }
@@ -329,7 +458,52 @@ export async function detectDocumentCandidatesWithOpenCv(
       aspectRatio: canvas.width / canvas.height,
     }) : null;
     const rawCandidates: BestQuadrilateral[] = [];
-    let primaryEdges: any = null;
+
+    // Bright, low-chroma cards on darker surfaces are common uploads and can
+    // be resolved cheaply before the more expensive multi-pass line search.
+    const brightMask = new cv.Mat();
+    const cleanedBrightMask = new cv.Mat();
+    const brightBoundary = new cv.Mat();
+    const brightKernelSize = Math.max(5, Math.round(Math.min(canvas.width, canvas.height) * 0.01) | 1);
+    const brightKernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(brightKernelSize, brightKernelSize));
+    const brightBoundaryKernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+    try {
+      brightMask.create(canvas.height, canvas.width, cv.CV_8UC1);
+      for (let pixel = 0; pixel < canvas.width * canvas.height; pixel += 1) {
+        const offset = pixel * 3;
+        const luminance = lab.data[offset];
+        const a = lab.data[offset + 1] - 128;
+        const b = lab.data[offset + 2] - 128;
+        const chroma = Math.hypot(a, b);
+        brightMask.data[pixel] = luminance >= 145 && chroma <= 42 ? 255 : 0;
+      }
+      cv.morphologyEx(brightMask, cleanedBrightMask, cv.MORPH_OPEN, brightKernel, new cv.Point(-1, -1), 1);
+      cv.morphologyEx(cleanedBrightMask, cleanedBrightMask, cv.MORPH_CLOSE, brightKernel, new cv.Point(-1, -1), 3);
+      cv.morphologyEx(cleanedBrightMask, brightBoundary, cv.MORPH_GRADIENT, brightBoundaryKernel);
+      const brightCandidates = analyzeForeground(cleanedBrightMask, brightBoundary, "bright-card");
+      const confidentBright = brightCandidates[0];
+      if (confidentBright && confidentBright.confidence >= 0.76 && confidentBright.score >= 0.62) {
+        return [{
+          id: "canny",
+          label: "Bright document detection",
+          detail: "Detected a bright, low-color document against the surrounding surface.",
+          detection: {
+            corners: confidentBright.points,
+            confidence: confidentBright.confidence,
+            found: true,
+            rotated: confidentBright.rotated,
+            aspectRatio: canvas.width / canvas.height,
+          },
+        }];
+      }
+      rawCandidates.push(...brightCandidates);
+    } finally {
+      brightBoundaryKernel.delete();
+      brightKernel.delete();
+      brightBoundary.delete();
+      cleanedBrightMask.delete();
+      brightMask.delete();
+    }
 
     for (let passIndex = 0; passIndex < cannyPasses.length; passIndex += 1) {
       const pass = cannyPasses[passIndex];
@@ -345,8 +519,7 @@ export async function detectDocumentCandidatesWithOpenCv(
         if (passIndex === 0) primaryEdges = canny.clone();
         const contourCanny = analyzeForeground(cannyClosed, canny, "canny-contour");
         const pairedLines = analyzeLinePairs(canny, "canny-lines");
-        if (contourCanny) rawCandidates.push(contourCanny);
-        if (pairedLines) rawCandidates.push(pairedLines);
+        rawCandidates.push(...contourCanny, ...pairedLines);
       } finally {
         kernel.delete();
         cannyClosed.delete();
@@ -367,8 +540,7 @@ export async function detectDocumentCandidatesWithOpenCv(
       cv.morphologyEx(equalizedEdges, equalizedClosed, cv.MORPH_CLOSE, equalizedKernel, new cv.Point(-1, -1), 2);
       const equalizedContour = analyzeForeground(equalizedClosed, equalizedEdges, "equalized-contour");
       const equalizedLines = analyzeLinePairs(equalizedEdges, "equalized-lines");
-      if (equalizedContour) rawCandidates.push(equalizedContour);
-      if (equalizedLines) rawCandidates.push(equalizedLines);
+      rawCandidates.push(...equalizedContour, ...equalizedLines);
     } finally {
       equalizedKernel.delete();
       equalizedClosed.delete();
@@ -377,8 +549,6 @@ export async function detectDocumentCandidatesWithOpenCv(
       equalized.delete();
     }
 
-    const rgb = new cv.Mat();
-    const lab = new cv.Mat();
     const foregroundMask = new cv.Mat();
     const cleanedMask = new cv.Mat();
     const foregroundKernel = cv.getStructuringElement(
@@ -386,8 +556,6 @@ export async function detectDocumentCandidatesWithOpenCv(
       new cv.Size(Math.max(5, Math.round(Math.min(canvas.width, canvas.height) * 0.012) | 1), Math.max(5, Math.round(Math.min(canvas.width, canvas.height) * 0.012) | 1)),
     );
     try {
-      cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
-      cv.cvtColor(rgb, lab, cv.COLOR_RGB2Lab);
       foregroundMask.create(canvas.height, canvas.width, cv.CV_8UC1);
       const rim = Math.max(4, Math.round(Math.min(canvas.width, canvas.height) * 0.035));
       const samples: number[][] = [[], [], []];
@@ -412,14 +580,11 @@ export async function detectDocumentCandidatesWithOpenCv(
       cv.morphologyEx(foregroundMask, cleanedMask, cv.MORPH_OPEN, foregroundKernel, new cv.Point(-1, -1), 1);
       cv.morphologyEx(cleanedMask, cleanedMask, cv.MORPH_CLOSE, foregroundKernel, new cv.Point(-1, -1), 2);
       const foreground = analyzeForeground(cleanedMask, primaryEdges ?? foregroundMask, "lab-foreground");
-      if (foreground) rawCandidates.push(foreground);
+      rawCandidates.push(...foreground);
     } finally {
       foregroundKernel.delete();
       cleanedMask.delete();
       foregroundMask.delete();
-      lab.delete();
-      rgb.delete();
-      primaryEdges?.delete();
     }
 
     const cannyDetection = toDetection(rankCandidates(rawCandidates));
@@ -427,6 +592,9 @@ export async function detectDocumentCandidatesWithOpenCv(
     if (cannyDetection) candidates.push({ id: "canny", label: "Combined edge detection", detail: "Combines grayscale, contrast-normalized, background-segmentation, contour, and line evidence.", detection: cannyDetection });
     return candidates;
   } finally {
+    primaryEdges?.delete();
+    lab.delete();
+    rgb.delete();
     gray.delete();
     src.delete();
   }

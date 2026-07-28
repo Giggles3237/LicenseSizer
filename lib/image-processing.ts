@@ -17,6 +17,7 @@ export type DetectionResult = {
   found: boolean;
   rotated: boolean;
   aspectRatio: number;
+  automaticStatus?: "detected" | "fallback-detected" | "manual-required" | "analyzer-unavailable";
 };
 
 export type CropCandidate = {
@@ -154,28 +155,63 @@ export async function detectDocument(source: Blob, hint?: [Point, Point, Point, 
 export async function detectDocumentCandidates(source: Blob, hint?: [Point, Point, Point, Point]): Promise<CropCandidate[]> {
   const canvas = await sourceToCanvas(source, 960);
   let openCvCandidates: CropCandidate[] = [];
+  let analyzerUnavailable = false;
   try {
     const { detectDocumentCandidatesWithOpenCv } = await import("./opencv-document");
     openCvCandidates = await timeoutAfter(detectDocumentCandidatesWithOpenCv(canvas, hint), 12_000, "The detailed analyzer was unavailable.");
-  } catch {
-    // Continue with the lightweight on-device detector below.
+  } catch (error) {
+    analyzerUnavailable = true;
+    console.warn(
+      "Primary document analyzer unavailable; using the compatible on-device fallback.",
+      error instanceof Error ? error.message : "Unknown analyzer error",
+    );
   }
   const aspectRatio = canvas.width / canvas.height;
-  const uncertain = (corners: [Point, Point, Point, Point]): DetectionResult => ({
+  const uncertain = (
+    corners: [Point, Point, Point, Point],
+    automaticStatus: DetectionResult["automaticStatus"],
+  ): DetectionResult => ({
     corners: corners.map((point) => ({ ...point })) as [Point, Point, Point, Point],
     confidence: 0,
     found: false,
     rotated: false,
     aspectRatio,
+    automaticStatus,
   });
   const byId = new Map(openCvCandidates.map((candidate) => [candidate.id, candidate]));
-  const canny = byId.get("canny") ?? {
+  const canny = byId.get("canny");
+  if (canny) {
+    canny.detection.automaticStatus = canny.detection.found ? "detected" : "manual-required";
+    return [canny];
+  }
+
+  if (analyzerUnavailable) {
+    try {
+      const legacy = await detectDocumentLegacy(source);
+      if (legacy.found) {
+        return [{
+          id: "canny" as const,
+          label: "Compatible edge detector",
+          detail: "The primary analyzer was unavailable, so a lightweight on-device detector supplied this framing.",
+          detection: { ...legacy, automaticStatus: "fallback-detected" },
+        }];
+      }
+    } catch {
+      // The explicit manual fallback below remains available.
+    }
+  }
+
+  return [{
     id: "canny" as const,
-    label: "Canny edges",
-    detail: "No closed edge loop was strong enough, so this begins near the photographed card area.",
-    detection: uncertain(hint ?? DEFAULT_CORNERS),
-  };
-  return [canny];
+    label: analyzerUnavailable ? "Manual framing" : "No confident outline",
+    detail: analyzerUnavailable
+      ? "Automatic framing could not start. Position each crop line around the document."
+      : "No candidate was reliable enough. Position each crop line around the document.",
+    detection: uncertain(
+      hint ?? DEFAULT_CORNERS,
+      analyzerUnavailable ? "analyzer-unavailable" : "manual-required",
+    ),
+  }];
 }
 
 export async function detectDocumentLegacy(source: Blob): Promise<DetectionResult> {

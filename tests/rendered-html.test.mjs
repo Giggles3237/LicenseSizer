@@ -4,8 +4,8 @@ import test from "node:test";
 import { CARD_HEIGHT_POINTS, CARD_WIDTH_POINTS, cardPlacement } from "../lib/pdf.ts";
 import { orientDocumentCorners } from "../lib/image-processing.ts";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry.ts";
-import { detectDocumentCandidatesWithOpenCv, detectDocumentWithOpenCv, warpDocumentWithOpenCv } from "../lib/opencv-document.ts";
-import { cornersToEdgeLines, edgeLinesToCorners, extendLineToBounds, orderDocumentPoints, squareToQuadrilateral } from "../lib/document-geometry.ts";
+import { detectDocumentCandidatesWithOpenCv, detectDocumentWithOpenCv, mergeCollinearSegments, warpDocumentWithOpenCv } from "../lib/opencv-document.ts";
+import { cornersToEdgeLines, coveredViewportPointToSource, edgeLinesToCorners, extendLineToBounds, orderDocumentPoints, squareToQuadrilateral } from "../lib/document-geometry.ts";
 
 const root = new URL("../", import.meta.url);
 
@@ -42,6 +42,25 @@ function paintQuadrilateral(pixels, width, height, corners, color) {
       pixels[offset] = color[0];
       pixels[offset + 1] = color[1];
       pixels[offset + 2] = color[2];
+    }
+  }
+}
+
+function paintSegment(pixels, width, height, start, end, color, thickness = 3) {
+  const steps = Math.ceil(Math.hypot(end.x - start.x, end.y - start.y));
+  for (let step = 0; step <= steps; step += 1) {
+    const x = Math.round(start.x + (end.x - start.x) * step / Math.max(1, steps));
+    const y = Math.round(start.y + (end.y - start.y) * step / Math.max(1, steps));
+    for (let offsetY = -thickness; offsetY <= thickness; offsetY += 1) {
+      for (let offsetX = -thickness; offsetX <= thickness; offsetX += 1) {
+        const sampleX = x + offsetX;
+        const sampleY = y + offsetY;
+        if (sampleX < 0 || sampleY < 0 || sampleX >= width || sampleY >= height) continue;
+        const offset = (sampleY * width + sampleX) * 4;
+        pixels[offset] = color[0];
+        pixels[offset + 1] = color[1];
+        pixels[offset + 2] = color[2];
+      }
     }
   }
 }
@@ -224,6 +243,39 @@ test("Canny uses portrait pixel geometry and rejects larger shapes touching the 
   assert.ok(Math.abs((canny?.corners[2].y ?? 0) - 715 / height) < 0.05);
 });
 
+test("collinear edge fragments merge across rounded corners and glare gaps", () => {
+  const makeSegment = (start, end) => ({
+    line: [start, end],
+    length: Math.hypot(end.x - start.x, end.y - start.y),
+    angle: Math.atan2(end.y - start.y, end.x - start.x),
+    midpoint: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 },
+  });
+  const merged = mergeCollinearSegments([
+    makeSegment({ x: 0.1, y: 0.3 }, { x: 0.42, y: 0.3 }),
+    makeSegment({ x: 0.48, y: 0.302 }, { x: 0.9, y: 0.302 }),
+    makeSegment({ x: 0.1, y: 0.7 }, { x: 0.9, y: 0.7 }),
+  ]);
+  assert.equal(merged.length, 2);
+  assert.ok(merged.some((segment) => segment.length > 0.79 && segment.midpoint.y < 0.4));
+});
+
+test("production CSP scopes the OpenCV runtime permission to capture routes", async () => {
+  const config = await readFile(new URL("../next.config.ts", import.meta.url), "utf8");
+  assert.match(config, /allowOpenCvRuntime \? " 'wasm-unsafe-eval' 'unsafe-eval'"/);
+  assert.match(config, /source: "\/capture"/);
+  assert.match(config, /source: "\/d\/:slug\/scan"/);
+  assert.doesNotMatch(config, /const contentSecurityPolicy = createContentSecurityPolicy\(true\)/);
+});
+
+test("maps a fixed crop viewport through a covered image after rotation", () => {
+  const viewportAspect = 4 / 3;
+  const rotatedSourceAspect = 3 / 4;
+  const top = coveredViewportPointToSource({ x: 0.5, y: 0 }, viewportAspect, rotatedSourceAspect);
+  const bottom = coveredViewportPointToSource({ x: 0.5, y: 1 }, viewportAspect, rotatedSourceAspect);
+  assert.deepEqual(top, { x: 0.5, y: 0.21875 });
+  assert.deepEqual(bottom, { x: 0.5, y: 0.78125 });
+});
+
 test("detector benchmark handles low contrast, color separation, and guide ambiguity", async () => {
   const fixtures = [];
 
@@ -272,6 +324,43 @@ test("detector benchmark handles low contrast, color separation, and guide ambig
   assert.ok(results.filter((result) => result.found).length >= 2, JSON.stringify(results));
   assert.ok(results.reduce((sum, result) => sum + result.error, 0) / results.length < 0.055, JSON.stringify(results));
   assert.ok(results[2].error < 0.04, "the camera guide should disambiguate the intended card");
+});
+
+test("bright-card benchmark rejects textured upholstery and seat seams", async () => {
+  const width = 684;
+  const height = 1024;
+  const { canvas, pixels } = await prepareOpenCvCanvas(width, height, [126, 54, 50]);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      const texture = ((x * 17 + y * 11) % 23) - 11;
+      pixels[offset] = Math.max(0, Math.min(255, pixels[offset] + texture));
+      pixels[offset + 1] = Math.max(0, Math.min(255, pixels[offset + 1] + Math.round(texture * 0.45)));
+      pixels[offset + 2] = Math.max(0, Math.min(255, pixels[offset + 2] + Math.round(texture * 0.35)));
+    }
+  }
+  paintSegment(pixels, width, height, { x: 0, y: 95 }, { x: 300, y: 330 }, [45, 27, 27], 8);
+  paintSegment(pixels, width, height, { x: 0, y: 250 }, { x: 260, y: 30 }, [192, 116, 105], 6);
+  const corners = [{ x: 62, y: 252 }, { x: 642, y: 262 }, { x: 650, y: 630 }, { x: 48, y: 622 }];
+  paintQuadrilateral(pixels, width, height, corners, [232, 235, 230]);
+  for (let row = 0; row < 9; row += 1) {
+    paintSegment(pixels, width, height, { x: 105, y: 315 + row * 25 }, { x: 510 - row * 9, y: 317 + row * 25 }, [42, 45, 44], 2);
+  }
+  for (let row = 0; row < 9; row += 1) {
+    for (let column = 0; column < 9; column += 1) {
+      if ((row * 3 + column * 5) % 4 !== 0) continue;
+      paintQuadrilateral(pixels, width, height, [
+        { x: 540 + column * 8, y: 500 + row * 8 },
+        { x: 547 + column * 8, y: 500 + row * 8 },
+        { x: 547 + column * 8, y: 507 + row * 8 },
+        { x: 540 + column * 8, y: 507 + row * 8 },
+      ], [35, 38, 37]);
+    }
+  }
+  const expected = normalizedCorners(corners, width, height);
+  const detection = await detectDocumentWithOpenCv(canvas);
+  assert.equal(detection?.found, true);
+  assert.ok(detection && meanCornerError(detection.corners, expected) < 0.035, JSON.stringify(detection));
 });
 
 test("OpenCV perspective correction maps exact manual corners to a rectangle", async () => {
@@ -348,6 +437,10 @@ test("crop review uses the Canny suggestion and retains endpoint handles without
   assert.doesNotMatch(component, /role="radiogroup" aria-label="Framing options"/);
   assert.doesNotMatch(component, /candidate-options|chooseCropCandidate/);
   assert.match(component, /Rotate photo 90 degrees clockwise/);
+  assert.match(component, /Automatic framing unavailable — manual adjustment required/);
+  assert.match(component, /Manual framing required/);
+  assert.match(component, /setDraftSourceAspect\(1 \/ draftSourceAspect\)/);
+  assert.doesNotMatch(component, /const rotated = await rotateImageClockwise\(draft\);\s*await prepareDraft\(rotated\)/);
   assert.match(component, /accept="image\/\*,application\/pdf,\.pdf"/);
   assert.match(component, /Add photo or PDF/);
   assert.match(component, /preparePdfDraft/);
