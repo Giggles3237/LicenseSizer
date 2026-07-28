@@ -17,8 +17,8 @@ export function generateMetadata(): Metadata {
     applicationName: "LicenseResizer",
     manifest: "/manifest.webmanifest",
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
-    openGraph: { title, description, type: "website", images: [{ url: "/og.png", width: 1536, height: 896, alt: "LicenseResizer private license collection for dealerships" }] },
-    twitter: { card: "summary_large_image", title, description, images: ["/og.png"] },
+    openGraph: { title, description, type: "website", images: [{ url: "/og.jpg", width: 1536, height: 896, alt: "LicenseResizer private license collection for dealerships" }] },
+    twitter: { card: "summary_large_image", title, description, images: ["/og.jpg"] },
   };
 }
 

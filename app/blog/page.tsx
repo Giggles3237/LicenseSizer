@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     description: "Field notes on private license collection, dealership handoffs, and cleaner document workflows.",
     url: absoluteUrl("/blog"),
     type: "website",
-    images: [{ url: "/og.png", width: 1536, height: 896, alt: "LicenseResizer private license collection for dealerships" }],
+    images: [{ url: "/og.jpg", width: 1536, height: 896, alt: "LicenseResizer private license collection for dealerships" }],
   },
 };
 
