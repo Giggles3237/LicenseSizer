@@ -5,9 +5,9 @@ import type { NextConfig } from "next";
 // development instances, so without these the sign-in flow cannot load.
 const clerkHosts = "https://clerk.licenseresizer.com https://accounts.licenseresizer.com https://*.clerk.accounts.dev https://*.clerk.com";
 
-const contentSecurityPolicy = [
+const createContentSecurityPolicy = (allowOpenCvRuntime = false) => [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' ${clerkHosts} https://challenges.cloudflare.com https://www.googletagmanager.com https://tagmanager.google.com`,
+  `script-src 'self' 'unsafe-inline'${allowOpenCvRuntime ? " 'wasm-unsafe-eval' 'unsafe-eval'" : ""} ${clerkHosts} https://challenges.cloudflare.com https://www.googletagmanager.com https://tagmanager.google.com`,
   `script-src-elem 'self' 'unsafe-inline' ${clerkHosts} https://challenges.cloudflare.com https://www.googletagmanager.com https://tagmanager.google.com`,
   "worker-src 'self' blob:",
   "img-src 'self' blob: data: https://img.clerk.com https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com https://ssl.gstatic.com https://www.gstatic.com",
@@ -22,18 +22,31 @@ const contentSecurityPolicy = [
   "upgrade-insecure-requests",
 ].join("; ");
 
+const contentSecurityPolicy = createContentSecurityPolicy();
+const captureContentSecurityPolicy = createContentSecurityPolicy(true);
+
 const nextConfig: NextConfig = {
   async headers() {
-    return [{
-      source: "/(.*)",
-      headers: [
-        { key: "Content-Security-Policy", value: contentSecurityPolicy },
-        { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
-        { key: "Referrer-Policy", value: "no-referrer" },
-        { key: "X-Content-Type-Options", value: "nosniff" },
-        { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
-      ],
-    }];
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "Content-Security-Policy", value: contentSecurityPolicy },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+        ],
+      },
+      {
+        source: "/capture",
+        headers: [{ key: "Content-Security-Policy", value: captureContentSecurityPolicy }],
+      },
+      {
+        source: "/d/:slug/scan",
+        headers: [{ key: "Content-Security-Policy", value: captureContentSecurityPolicy }],
+      },
+    ];
   },
 };
 

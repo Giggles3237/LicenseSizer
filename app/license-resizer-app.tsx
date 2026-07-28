@@ -24,6 +24,29 @@ type PdfQuota = { allowed: boolean; used: number; limit: number | null; resetsAt
 
 const sideLabel = (side: Side) => (side === "front" ? "front" : "back");
 const LINE_NAMES = ["Top", "Right", "Bottom", "Left"] as const;
+const framingCopy = (detection: DetectionResult | null) => {
+  if (detection?.automaticStatus === "analyzer-unavailable") {
+    return {
+      intro: "Automatic framing could not start. Position each line around the document; the image will still be corrected when you continue.",
+      badge: "Automatic framing unavailable — manual adjustment required",
+      ready: false,
+    };
+  }
+  if (detection?.found) {
+    return {
+      intro: detection.automaticStatus === "fallback-detected"
+        ? "A compatible on-device detector selected this framing. Confirm that the outline sits just inside all four edges."
+        : "We’ve selected the strongest framing. Confirm that the outline sits just inside all four edges.",
+      badge: detection.automaticStatus === "fallback-detected" ? "Fallback framing ready to review" : "Framing ready to review",
+      ready: true,
+    };
+  }
+  return {
+    intro: "We couldn’t identify all four edges confidently. Position each line or round handle around the document before continuing.",
+    badge: "Manual framing required",
+    ready: false,
+  };
+};
 const MAX_UPLOADED_PDF_BYTES = 25 * 1024 * 1024;
 const pdfFilename = () => {
   const date = new Date();
@@ -559,6 +582,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     return { left: `${line.start.x * 100}%`, top: `${line.start.y * 100}%`, width: `${Math.sqrt(dx * dx + dy * dy)}%`, transform: `rotate(${Math.atan2(dy, dx)}rad)` };
   });
   const activeItem = activeSide === "front" ? front : back;
+  const activeFramingCopy = framingCopy(detection);
 
   return (
     <main className="app-shell">
@@ -639,8 +663,8 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
           <div className="panel review-panel">
             <div className="panel-heading"><div><span className="step-kicker">Refine {sideLabel(activeSide)}</span><h1>Fine-tune the framing</h1></div></div>
             <div className="photo-toolbar" aria-label="Photo actions"><span>Original photo</span><div><button type="button" onClick={() => void rotateDraft()} disabled={busy} aria-label="Rotate photo 90 degrees clockwise"><span aria-hidden="true">↻</span> Rotate</button><button type="button" onClick={() => beginCapture(activeSide)} disabled={busy}><span aria-hidden="true">↺</span> Replace</button></div></div>
-            <p>We’ve selected the strongest framing. The outline should sit just inside all four edges; drag any line or round handle for a precise fit.</p>
-            <div className={`detection-badge ${detection?.found ? "found" : "manual"}`}><span aria-hidden="true">{detection?.found ? "✓" : "!"}</span>{detection?.found ? "Framing ready to review" : "A quick adjustment may be needed"}</div>
+            <p>{activeFramingCopy.intro} Drag any line or round handle for a precise fit.</p>
+            <div className={`detection-badge ${activeFramingCopy.ready ? "found" : "manual"}`}><span aria-hidden="true">{activeFramingCopy.ready ? "✓" : "!"}</span>{activeFramingCopy.badge}</div>
             <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(65vh * ${draftAspect}))` }} ref={cropRef} onPointerMove={moveActiveDrag} onPointerUp={() => { dragHandle.current = null; }} onPointerCancel={() => { dragHandle.current = null; }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={draftUrl} alt={`Uncropped license ${sideLabel(activeSide)}`} draggable={false} />
