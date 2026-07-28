@@ -74,6 +74,27 @@ async function rotateImageClockwise(source: Blob): Promise<Blob> {
   ));
 }
 
+async function rotateImageCounterClockwise(source: Blob): Promise<Blob> {
+  const input = await sourceToCanvas(source);
+  const output = document.createElement("canvas");
+  output.width = input.height;
+  output.height = input.width;
+  const context = output.getContext("2d");
+  if (!context) throw new Error("Unable to rotate the photo.");
+  context.translate(0, output.height);
+  context.rotate(-Math.PI / 2);
+  context.drawImage(input, 0, 0);
+  return new Promise((resolve, reject) => output.toBlob(
+    (blob) => blob ? resolve(blob) : reject(new Error("Unable to rotate the photo.")),
+    "image/jpeg",
+    0.92,
+  ));
+}
+
+const rotateCornersCounterClockwise = (
+  corners: [Point, Point, Point, Point],
+): [Point, Point, Point, Point] => corners.map(({ x, y }) => ({ x: y, y: 1 - x })) as [Point, Point, Point, Point];
+
 function Progress({ stage }: { stage: Stage }) {
   const steps = ["Capture", "Refine", "Finish"];
   const current = stage === "start" || stage === "capture" ? 0 : stage === "review" || stage === "ready" ? 1 : 2;
@@ -122,6 +143,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [preparingImage, setPreparingImage] = useState(false);
   const [message, setMessage] = useState("");
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [pdfUrl, setPdfUrl] = useState("");
@@ -307,15 +329,28 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
 
   const prepareDraft = async (blob: Blob, guideCorners?: [Point, Point, Point, Point]) => {
     setBusy(true);
-    setMessage("Preparing your photo and finding the cleanest framing…");
+    setPreparingImage(true);
+    setMessage("Checking the photo orientation…");
     try {
       await validateImage(blob);
       stopCamera();
       clearDraft();
-      const url = URL.createObjectURL(blob);
-      setDraft(blob);
+      const initialCandidates = await detectDocumentCandidates(blob, guideCorners);
+      const initialDetection = initialCandidates[0].detection;
+      const shouldNormalizeOrientation = initialDetection.found && initialDetection.rotated;
+      const preparedBlob = shouldNormalizeOrientation ? await rotateImageCounterClockwise(blob) : blob;
+      const preparedGuide = shouldNormalizeOrientation && guideCorners
+        ? rotateCornersCounterClockwise(guideCorners)
+        : guideCorners;
+      setMessage(shouldNormalizeOrientation
+        ? "Rotated. Finding the cleanest framing…"
+        : "Finding the cleanest framing…");
+      const url = URL.createObjectURL(preparedBlob);
+      setDraft(preparedBlob);
       setDraftUrl(url);
-      const [qualityResult, candidates] = await Promise.all([analyzeImage(blob), detectDocumentCandidates(blob, guideCorners)]);
+      const [qualityResult, candidates] = shouldNormalizeOrientation
+        ? await Promise.all([analyzeImage(preparedBlob), detectDocumentCandidates(preparedBlob, preparedGuide)])
+        : [await analyzeImage(preparedBlob), initialCandidates];
       const detectionResult = candidates[0].detection;
       setQuality(qualityResult);
       setDetection(detectionResult);
@@ -388,6 +423,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to rotate the photo.");
     } finally {
+      setPreparingImage(false);
       setBusy(false);
     }
   };
@@ -600,7 +636,19 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
 
       <section className="workspace" id="top">
         {stage !== "start" && <Progress stage={stage} />}
-        {message && <div className="notice" role="status">{busy && <span className="spinner" aria-hidden="true" />}{message}</div>}
+        {preparingImage && (
+          <div className="orientation-progress" role="status" aria-live="polite">
+            <div className="orientation-stage" aria-hidden="true">
+              <div className="orientation-card">
+                <span className="orientation-photo" />
+                <span className="orientation-lines"><i /><i /><i /></span>
+                <span className="orientation-scan" />
+              </div>
+            </div>
+            <div><strong>Preparing your photo</strong><span>{message}</span></div>
+          </div>
+        )}
+        {message && !preparingImage && <div className="notice" role="status">{busy && <span className="spinner" aria-hidden="true" />}{message}</div>}
 
         {stage === "start" && (
           <div className="start-screen">
