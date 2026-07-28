@@ -102,7 +102,7 @@ test("uses exact nominal ID-1 PDF geometry", () => {
   assert.ok(Math.abs(placement.firstY - placement.secondY - CARD_HEIGHT_POINTS - 36) < 0.000001);
 });
 
-test("preserves portrait crop orientation until the user chooses rotate", () => {
+test("identifies a portrait card so intake can normalize it before review", () => {
   const portrait = [
     { x: 0.3, y: 0.1 },
     { x: 0.55, y: 0.1 },
@@ -441,6 +441,12 @@ test("crop review uses the Canny suggestion and retains endpoint handles without
   assert.match(component, /Manual framing required/);
   assert.match(component, /setDraftSourceAspect\(1 \/ draftSourceAspect\)/);
   assert.doesNotMatch(component, /const rotated = await rotateImageClockwise\(draft\);\s*await prepareDraft\(rotated\)/);
+  assert.match(component, /initialDetection\.found && initialDetection\.rotated/);
+  assert.match(component, /rotateImageCounterClockwise\(blob\)/);
+  assert.match(component, /analyzeImage\(preparedBlob\), detectDocumentCandidates\(preparedBlob, preparedGuide\)/);
+  assert.match(component, /className="orientation-progress"/);
+  assert.match(styles, /@keyframes normalize-orientation/);
+  assert.match(styles, /prefers-reduced-motion: reduce/);
   assert.match(component, /accept="image\/\*,application\/pdf,\.pdf"/);
   assert.match(component, /Add photo or PDF/);
   assert.match(component, /preparePdfDraft/);

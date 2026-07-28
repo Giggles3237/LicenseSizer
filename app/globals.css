@@ -244,8 +244,38 @@ legend { margin-bottom: 9px; color: var(--navy); font-size: 13px; font-weight: 8
 .download { cursor: pointer; }
 .clear-button { margin-top: 25px; padding: 8px; color: var(--danger); background: transparent; font-size: 12px; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
 .notice { max-width: 760px; display: flex; align-items: center; gap: 10px; margin: 0 auto 14px; padding: 12px 15px; border: 1px solid #d4e5e1; border-radius: 10px; color: #345c55; background: #eff8f5; font-size: 13px; }
+.orientation-progress { max-width: 760px; min-height: 132px; display: flex; align-items: center; justify-content: center; gap: 24px; margin: 0 auto 18px; padding: 20px 24px; overflow: hidden; border: 1px solid #cfe2dd; border-radius: 16px; color: var(--navy); background: linear-gradient(135deg, #f8fcfb, #eaf6f2); box-shadow: 0 12px 30px rgba(18,63,85,.08); }
+.orientation-progress > div:last-child { min-width: 0; }
+.orientation-progress strong, .orientation-progress span { display: block; }
+.orientation-progress strong { font: 500 23px/1.1 Georgia, "Times New Roman", serif; }
+.orientation-progress > div:last-child span { margin-top: 6px; color: #5c716e; font-size: 12px; line-height: 1.45; }
+.orientation-stage { position: relative; width: 112px; height: 84px; flex: 0 0 auto; display: grid; place-items: center; }
+.orientation-stage::before { content: ""; position: absolute; width: 78px; height: 78px; border: 1px solid rgba(22,139,121,.18); border-radius: 50%; box-shadow: 0 0 0 8px rgba(22,139,121,.05); animation: orientation-pulse 1.6s ease-in-out infinite; }
+.orientation-card { position: relative; width: 82px; aspect-ratio: 1.58577; overflow: hidden; border: 1px solid rgba(18,63,85,.24); border-radius: 5px; background: linear-gradient(135deg, #d9ecef, #f5f0dc); box-shadow: 0 8px 16px rgba(18,63,85,.2); animation: normalize-orientation 1.8s cubic-bezier(.65,0,.2,1) infinite; }
+.orientation-photo { position: absolute; width: 21px; height: 27px; left: 8px; top: 12px; border-radius: 3px; background: radial-gradient(circle at 50% 31%, #71918e 0 17%, transparent 18%), radial-gradient(ellipse at 50% 105%, #71918e 0 38%, transparent 39%), #b9d1ce; }
+.orientation-lines { position: absolute; left: 36px; right: 8px; top: 14px; display: grid; gap: 5px; }
+.orientation-lines i { height: 3px; display: block; border-radius: 3px; background: rgba(18,63,85,.4); }
+.orientation-lines i:nth-child(2) { width: 78%; }
+.orientation-lines i:nth-child(3) { width: 90%; }
+.orientation-scan { position: absolute; inset: 0 auto 0 -20%; width: 24%; background: linear-gradient(90deg, transparent, rgba(72,224,194,.55), transparent); transform: skewX(-12deg); animation: orientation-scan 1.2s ease-in-out infinite; }
 .spinner { width: 16px; height: 16px; flex: 0 0 auto; border: 2px solid #b3d8d0; border-top-color: var(--teal); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes normalize-orientation {
+  0%, 18% { transform: rotate(90deg) scale(.78); }
+  48%, 82% { transform: rotate(0) scale(1); }
+  100% { transform: rotate(0) scale(1); }
+}
+@keyframes orientation-scan {
+  0% { left: -25%; opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { left: 110%; opacity: 0; }
+}
+@keyframes orientation-pulse { 50% { transform: scale(1.08); opacity: .55; } }
+@media (prefers-reduced-motion: reduce) {
+  .orientation-card { animation: none; }
+  .orientation-stage::before, .orientation-scan { animation-duration: 3s; }
+}
 
 footer { width: min(920px, calc(100% - 36px)); margin: 0 auto; padding: 24px 0 35px; border-top: 1px solid #d5e1e2; color: #738087; font-size: 11px; text-align: center; }
 footer summary { cursor: pointer; color: var(--navy); font-weight: 800; }
