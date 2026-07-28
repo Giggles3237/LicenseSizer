@@ -172,6 +172,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   const cropRef = useRef<HTMLDivElement>(null);
   const analysisUrlRef = useRef("");
   const analysisRequestRef = useRef(0);
+  const preparationRequestRef = useRef(0);
   const dragHandle = useRef<
     | { kind: "handle"; line: number; end: "start" | "end" }
     | { kind: "line"; line: number; pointer: Point; initial: EdgeLine }
@@ -226,6 +227,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   }, [draftUrl, releaseAnalysisView]);
 
   const startOver = useCallback(() => {
+    preparationRequestRef.current += 1;
     void postActivity("session_cleared");
     stopCamera();
     clearDraft();
@@ -245,6 +247,8 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     setPdfDownloadName("");
     setActiveSide("front");
     setMessage("");
+    setPreparingImage(false);
+    setBusy(false);
     setStage("start");
   }, [back, clearDraft, front, pdfUrl, postActivity, stopCamera]);
 
@@ -293,6 +297,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   }, [cameraOpen]);
 
   useEffect(() => () => {
+    preparationRequestRef.current += 1;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     if (analysisUrlRef.current) URL.revokeObjectURL(analysisUrlRef.current);
   }, []);
@@ -328,17 +333,22 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   };
 
   const prepareDraft = async (blob: Blob, guideCorners?: [Point, Point, Point, Point]) => {
+    const request = preparationRequestRef.current + 1;
+    preparationRequestRef.current = request;
     setBusy(true);
     setPreparingImage(true);
     setMessage("Checking the photo orientation…");
     try {
       await validateImage(blob);
+      if (preparationRequestRef.current !== request) return;
       stopCamera();
       clearDraft();
       const initialCandidates = await detectDocumentCandidates(blob, guideCorners);
+      if (preparationRequestRef.current !== request) return;
       const initialDetection = initialCandidates[0].detection;
       const shouldNormalizeOrientation = initialDetection.found && initialDetection.rotated;
       const preparedBlob = shouldNormalizeOrientation ? await rotateImageCounterClockwise(blob) : blob;
+      if (preparationRequestRef.current !== request) return;
       const preparedGuide = shouldNormalizeOrientation && guideCorners
         ? rotateCornersCounterClockwise(guideCorners)
         : guideCorners;
@@ -351,6 +361,10 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
       const [qualityResult, candidates] = shouldNormalizeOrientation
         ? await Promise.all([analyzeImage(preparedBlob), detectDocumentCandidates(preparedBlob, preparedGuide)])
         : [await analyzeImage(preparedBlob), initialCandidates];
+      if (preparationRequestRef.current !== request) {
+        URL.revokeObjectURL(url);
+        return;
+      }
       const detectionResult = candidates[0].detection;
       setQuality(qualityResult);
       setDetection(detectionResult);
@@ -360,9 +374,14 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
       setStage("review");
       setMessage("");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "That image could not be opened.");
+      if (preparationRequestRef.current === request) {
+        setMessage(error instanceof Error ? error.message : "That image could not be opened.");
+      }
     } finally {
-      setBusy(false);
+      if (preparationRequestRef.current === request) {
+        setPreparingImage(false);
+        setBusy(false);
+      }
     }
   };
 
@@ -634,10 +653,9 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
         <div className="header-actions">{!deliveryProfile.publicSlug && <a className="dealer-link" href="/dashboard">Dealer console</a>}<div className="privacy-pill"><span /> Processed on this device</div></div>
       </header>
 
-      <section className="workspace" id="top">
-        {stage !== "start" && <Progress stage={stage} />}
-        {preparingImage && (
-          <div className="orientation-progress" role="status" aria-live="polite">
+      {preparingImage && (
+        <div className="orientation-progress-backdrop" role="status" aria-live="polite" aria-busy="true">
+          <div className="orientation-progress">
             <div className="orientation-stage" aria-hidden="true">
               <div className="orientation-card">
                 <span className="orientation-photo" />
@@ -647,7 +665,11 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
             </div>
             <div><strong>Preparing your photo</strong><span>{message}</span></div>
           </div>
-        )}
+        </div>
+      )}
+
+      <section className="workspace" id="top">
+        {stage !== "start" && <Progress stage={stage} />}
         {message && !preparingImage && <div className="notice" role="status">{busy && <span className="spinner" aria-hidden="true" />}{message}</div>}
 
         {stage === "start" && (

@@ -445,6 +445,10 @@ test("crop review uses the Canny suggestion and retains endpoint handles without
   assert.match(component, /rotateImageCounterClockwise\(blob\)/);
   assert.match(component, /analyzeImage\(preparedBlob\), detectDocumentCandidates\(preparedBlob, preparedGuide\)/);
   assert.match(component, /className="orientation-progress"/);
+  assert.match(component, /className="orientation-progress-backdrop"/);
+  assert.match(component, /preparationRequestRef\.current \+= 1/);
+  assert.match(component, /setPreparingImage\(false\)/);
+  assert.match(styles, /\.orientation-progress-backdrop \{ position: fixed; z-index: 1100; inset: 0/);
   assert.match(styles, /@keyframes normalize-orientation/);
   assert.match(styles, /animation: normalize-orientation 1\.1s cubic-bezier\(\.65,0,\.2,1\) 1 both/);
   assert.doesNotMatch(styles, /animation: normalize-orientation[^;]*infinite/);
