@@ -244,7 +244,8 @@ legend { margin-bottom: 9px; color: var(--navy); font-size: 13px; font-weight: 8
 .download { cursor: pointer; }
 .clear-button { margin-top: 25px; padding: 8px; color: var(--danger); background: transparent; font-size: 12px; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
 .notice { max-width: 760px; display: flex; align-items: center; gap: 10px; margin: 0 auto 14px; padding: 12px 15px; border: 1px solid #d4e5e1; border-radius: 10px; color: #345c55; background: #eff8f5; font-size: 13px; }
-.orientation-progress { max-width: 760px; min-height: 132px; display: flex; align-items: center; justify-content: center; gap: 24px; margin: 0 auto 18px; padding: 20px 24px; overflow: hidden; border: 1px solid #cfe2dd; border-radius: 16px; color: var(--navy); background: linear-gradient(135deg, #f8fcfb, #eaf6f2); box-shadow: 0 12px 30px rgba(18,63,85,.08); }
+.orientation-progress-backdrop { position: fixed; z-index: 1100; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(238,246,244,.82); backdrop-filter: blur(6px); }
+.orientation-progress { width: min(100%, 620px); min-height: 150px; display: flex; align-items: center; justify-content: center; gap: 24px; padding: 24px 28px; overflow: hidden; border: 1px solid #c3ddd7; border-radius: 18px; color: var(--navy); background: linear-gradient(135deg, #fff, #eaf6f2); box-shadow: 0 24px 70px rgba(18,63,85,.18); }
 .orientation-progress > div:last-child { min-width: 0; }
 .orientation-progress strong, .orientation-progress span { display: block; }
 .orientation-progress strong { font: 500 23px/1.1 Georgia, "Times New Roman", serif; }
