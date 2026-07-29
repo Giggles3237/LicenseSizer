@@ -407,6 +407,37 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     else void prepareDraft(file);
   };
 
+  const startCamera = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setMessage("This browser does not support the guided camera. Choose a photo or PDF from this device instead.");
+      fileRef.current?.click();
+      return;
+    }
+    setBusy(true);
+    setMessage("Opening the guided camera...");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+      });
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = stream;
+      setCameraReady(false);
+      setCameraOpen(true);
+      setMessage("");
+    } catch (error) {
+      setMessage(error instanceof DOMException && error.name === "NotAllowedError"
+        ? "Camera access was blocked. Choose a photo or PDF from this device, or allow camera access in your browser settings."
+        : "The guided camera could not be opened. Choose a photo or PDF from this device instead.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const capturePhoto = () => {
     const video = videoRef.current;
     const guide = guideRef.current;
@@ -718,7 +749,8 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
               </div>
             ) : (
               <div className="capture-choices">
-                <button className="choice-card choice-card-wide" onClick={() => fileRef.current?.click()}><span className="choice-icon upload-icon" aria-hidden="true">↑</span><strong>Add photo or PDF</strong><small>Use the camera, photo library, or files on this device</small></button>
+                <button className="choice-card" onClick={() => void startCamera()} disabled={busy}><span className="choice-icon camera-icon" aria-hidden="true" /><strong>Take guided photo</strong><small>Use the live frame to line up the license</small></button>
+                <button className="choice-card" onClick={() => fileRef.current?.click()} disabled={busy}><span className="choice-icon upload-icon" aria-hidden="true">↑</span><strong>Add photo or PDF</strong><small>Use the photo library or files on this device</small></button>
               </div>
             )}
             <input ref={fileRef} className="visually-hidden" type="file" accept="image/*,application/pdf,.pdf" onChange={chooseFile} />
@@ -735,7 +767,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
             <div className="photo-toolbar" aria-label="Photo actions"><span>Original photo</span><div><button type="button" onClick={() => void rotateDraft()} disabled={busy} aria-label="Rotate photo 90 degrees clockwise"><span aria-hidden="true">↻</span> Rotate</button><button type="button" onClick={() => beginCapture(activeSide)} disabled={busy}><span aria-hidden="true">↺</span> Replace</button></div></div>
             <p>{activeFramingCopy.intro} Drag any line or round handle for a precise fit.</p>
             <div className={`detection-badge ${activeFramingCopy.ready ? "found" : "manual"}`}><span aria-hidden="true">{activeFramingCopy.ready ? "✓" : "!"}</span>{activeFramingCopy.badge}</div>
-            <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(65vh * ${draftAspect}))` }} ref={cropRef} onPointerMove={moveActiveDrag} onPointerUp={() => { dragHandle.current = null; }} onPointerCancel={() => { dragHandle.current = null; }}>
+            <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(var(--crop-stage-height, 65vh) * ${draftAspect}))` }} ref={cropRef} onPointerMove={moveActiveDrag} onPointerUp={() => { dragHandle.current = null; }} onPointerCancel={() => { dragHandle.current = null; }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={draftUrl} alt={`Uncropped license ${sideLabel(activeSide)}`} draggable={false} />
               {cropCorners && <svg className="crop-selection" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path className="crop-mask" fillRule="evenodd" d={`M0 0H100V100H0Z M${cropCorners.map((point) => `${point.x * 100} ${point.y * 100}`).join("L")}Z`} /><polygon className="crop-boundary-halo" points={cropCorners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")} /><polygon className="crop-boundary" points={cropCorners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")} /></svg>}

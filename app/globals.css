@@ -96,6 +96,7 @@ button { color: inherit; }
 .choice-card { min-height: 185px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 25px; border: 1px solid #cfdcdf; border-radius: 14px; background: #fbfdfc; transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
 .choice-card-wide { grid-column: 1 / -1; }
 .choice-card:hover { border-color: var(--teal); transform: translateY(-2px); box-shadow: 0 12px 30px rgba(21,80,82,.09); }
+.choice-card:disabled { cursor: wait; opacity: .62; transform: none; box-shadow: none; }
 .choice-card strong { margin: 15px 0 3px; color: var(--navy); font-size: 16px; }
 .choice-card small { color: var(--muted); }
 .choice-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; color: var(--teal-dark); background: var(--mint); font-size: 25px; font-weight: 400; }
@@ -110,7 +111,10 @@ button { color: inherit; }
 .camera-close { width: 42px; height: 42px; display: grid; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.25); border-radius: 50%; color: #fff; background: rgba(5,21,28,.55); font-size: 28px; line-height: 1; cursor: pointer; }
 .camera-private { display: flex; align-items: center; justify-content: flex-end; gap: 6px; color: rgba(255,255,255,.8); font-size: 10px; }
 .camera-private i { width: 6px; height: 6px; border-radius: 50%; background: #50d59a; box-shadow: 0 0 0 4px rgba(80,213,154,.15); }
-.camera-guide { position: absolute; z-index: 2; left: 50%; top: 46%; width: min(88vw, 720px, calc(68vh * 1.58577)); aspect-ratio: 1.58577; transform: translate(-50%, -50%); border: 1px solid rgba(255,255,255,.36); border-radius: 12px; box-shadow: 0 0 0 999vmax rgba(1,12,17,.48), inset 0 0 28px rgba(255,255,255,.06); }
+.camera-guide { position: absolute; z-index: 2; left: 50%; top: 46%; width: min(92vw, 720px, calc(70vh * 1.58577)); aspect-ratio: 1.58577; transform: translate(-50%, -50%); border: 2px solid rgba(255,255,255,.86); border-radius: 12px; box-shadow: 0 0 0 999vmax rgba(1,12,17,.42), inset 0 0 0 1px rgba(5,18,23,.55), inset 0 0 28px rgba(255,255,255,.08), 0 0 0 1px rgba(4,16,21,.45); }
+.camera-guide::before, .camera-guide::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+.camera-guide::before { background: linear-gradient(90deg, transparent calc(33.333% - .5px), rgba(255,255,255,.32) calc(33.333% - .5px) calc(33.333% + .5px), transparent calc(33.333% + .5px) calc(66.666% - .5px), rgba(255,255,255,.32) calc(66.666% - .5px) calc(66.666% + .5px), transparent calc(66.666% + .5px)); }
+.camera-guide::after { background: linear-gradient(0deg, transparent calc(33.333% - .5px), rgba(255,255,255,.32) calc(33.333% - .5px) calc(33.333% + .5px), transparent calc(33.333% + .5px) calc(66.666% - .5px), rgba(255,255,255,.32) calc(66.666% - .5px) calc(66.666% + .5px), transparent calc(66.666% + .5px)); }
 .guide-corner { position: absolute; width: 34px; height: 34px; border-color: #fff; border-style: solid; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
 .guide-corner.top-left { left: -2px; top: -2px; border-width: 4px 0 0 4px; border-radius: 12px 0 0; }
 .guide-corner.top-right { right: -2px; top: -2px; border-width: 4px 4px 0 0; border-radius: 0 12px 0 0; }
@@ -356,13 +360,14 @@ footer details p { max-width: 650px; margin: 10px auto; line-height: 1.6; }
   .trust-row div + div { border-top: 1px solid var(--line); border-left: 0; }
   .trust-row div { padding: 13px; }
   .panel { padding: 25px 18px; border-radius: 16px; }
+  .review-panel { width: calc(100vw - 16px); margin-inline: calc(50% - 50vw + 8px); padding-inline: 8px; --crop-stage-height: 76vh; }
   .progress li { gap: 5px; font-size: 9px; }
   .progress li:not(:last-child)::after { left: 25px; right: 5px; }
   .progress li span { width: 23px; height: 23px; }
   .capture-choices { grid-template-columns: 1fr; }
   .choice-card { min-height: 135px; }
   .panel-heading { gap: 12px; }
-  .crop-stage { min-height: 210px; }
+  .crop-stage { min-height: 210px; border-radius: 10px; }
   .development-controls { grid-template-columns: 1fr; }
   .development-controls p { grid-column: auto; }
   .analysis-metrics { grid-template-columns: repeat(2, 1fr); }
@@ -394,6 +399,15 @@ footer details p { max-width: 650px; margin: 10px auto; line-height: 1.6; }
   .admin-heading { align-items: start; flex-direction: column; }
   .activity-list > div { grid-template-columns: 38px minmax(0, 1fr); }
   .activity-list time { grid-column: 2; }
+}
+
+@media (pointer: coarse) {
+  .crop-line { height: 46px; margin-top: -23px; }
+  .line-handle { width: 48px; height: 48px; margin: -24px 0 0 -24px; border-width: 3px; opacity: .88; }
+  .line-handle.selected { width: 58px; height: 58px; margin: -29px 0 0 -29px; box-shadow: 0 0 0 4px rgba(255,255,255,.36), 0 6px 16px rgba(0,0,0,.42); }
+  .line-handle span { width: 14px; height: 14px; }
+  .camera-guide { width: min(94vw, 720px, calc(72vh * 1.58577)); border-width: 3px; }
+  .guide-corner { width: 42px; height: 42px; }
 }
 
 /* Dealership landing-page editor */
