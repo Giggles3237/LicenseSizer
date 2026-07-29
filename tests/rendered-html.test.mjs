@@ -439,8 +439,9 @@ test("crop review uses the Canny suggestion and retains endpoint handles without
   assert.match(component, /Rotate photo 90 degrees clockwise/);
   assert.match(component, /Automatic framing unavailable — manual adjustment required/);
   assert.match(component, /Manual framing required/);
-  assert.match(component, /setDraftSourceAspect\(1 \/ draftSourceAspect\)/);
-  assert.doesNotMatch(component, /const rotated = await rotateImageClockwise\(draft\);\s*await prepareDraft\(rotated\)/);
+  assert.match(component, /const rotated = await rotateImageClockwise\(draft\);\s*await prepareDraft\(rotated, undefined, \{/);
+  assert.match(component, /normalizeOrientation: false/);
+  assert.match(component, /Rotating and reprocessing the photo/);
   assert.match(component, /initialDetection\.found && initialDetection\.rotated/);
   assert.match(component, /rotateImageCounterClockwise\(blob\)/);
   assert.match(component, /analyzeImage\(preparedBlob\), detectDocumentCandidates\(preparedBlob, preparedGuide\)/);

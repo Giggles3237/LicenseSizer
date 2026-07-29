@@ -332,12 +332,17 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     void generateDevelopmentView(analysisView);
   };
 
-  const prepareDraft = async (blob: Blob, guideCorners?: [Point, Point, Point, Point]) => {
+  const prepareDraft = async (
+    blob: Blob,
+    guideCorners?: [Point, Point, Point, Point],
+    options: { normalizeOrientation?: boolean; initialMessage?: string } = {},
+  ) => {
+    const normalizeOrientation = options.normalizeOrientation ?? true;
     const request = preparationRequestRef.current + 1;
     preparationRequestRef.current = request;
     setBusy(true);
     setPreparingImage(true);
-    setMessage("Checking the photo orientation…");
+    setMessage(options.initialMessage ?? "Checking the photo orientation…");
     try {
       await validateImage(blob);
       if (preparationRequestRef.current !== request) return;
@@ -346,7 +351,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
       const initialCandidates = await detectDocumentCandidates(blob, guideCorners);
       if (preparationRequestRef.current !== request) return;
       const initialDetection = initialCandidates[0].detection;
-      const shouldNormalizeOrientation = initialDetection.found && initialDetection.rotated;
+      const shouldNormalizeOrientation = normalizeOrientation && initialDetection.found && initialDetection.rotated;
       const preparedBlob = shouldNormalizeOrientation ? await rotateImageCounterClockwise(blob) : blob;
       if (preparationRequestRef.current !== request) return;
       const preparedGuide = shouldNormalizeOrientation && guideCorners
@@ -457,24 +462,14 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
 
   const rotateDraft = async () => {
     if (!draft) return;
-    setBusy(true);
-    setMessage("Rotating the photo…");
     try {
       const rotated = await rotateImageClockwise(draft);
-      const rotatedUrl = URL.createObjectURL(rotated);
-      if (draftUrl) URL.revokeObjectURL(draftUrl);
-      releaseAnalysisView();
-      setDevelopmentOpen(false);
-      setDraft(rotated);
-      setDraftUrl(rotatedUrl);
-      setDraftSourceAspect(1 / draftSourceAspect);
-      setDetection(null);
-      setMessage("");
+      await prepareDraft(rotated, undefined, {
+        normalizeOrientation: false,
+        initialMessage: "Rotating and reprocessing the photo…",
+      });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to rotate the photo.");
-    } finally {
-      setPreparingImage(false);
-      setBusy(false);
     }
   };
 
