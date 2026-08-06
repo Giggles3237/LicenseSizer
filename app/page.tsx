@@ -14,6 +14,28 @@ function MockLicense({ small = false }: { small?: boolean }) {
   );
 }
 
+function HeroTransformation() {
+  return (
+    <div className="hero-transform-card" aria-label="Before and after license preparation preview">
+      <div className="hero-before">
+        <span className="transform-label">Before</span>
+        <div className="surface-lines" />
+        <MockLicense />
+        <span className="photo-flash" />
+      </div>
+      <div className="transform-arrow" aria-hidden="true">-&gt;</div>
+      <div className="hero-after">
+        <span className="transform-label">After</span>
+        <div className="pdf-page hero-pdf-page">
+          <span className="pdf-label">LICENSE COPY</span>
+          <MockLicense small />
+          <span className="pdf-dimensions">PDF READY TO SHARE</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const faqs = [
   {
     question: "Does the customer need to install an app?",
@@ -55,45 +77,36 @@ export default function Home() {
       <section className="marketing-hero" id="top">
         <div className="hero-copy">
           <p className="marketing-kicker"><span /> Private driver’s-license collection</p>
-          <h1>Customer license photos,<br /><em>ready for your team.</em></h1>
-          <p className="hero-lede">Send one branded link. Customers photograph their license, confirm the crop, and share a clean, true-size PDF—all processed on their device.</p>
+          <h1>Customer licenses.<br /><em>Perfectly prepared.</em></h1>
+          <p className="hero-lede">Give customers one branded link. They take a photo, confirm it looks right, and share a clean PDF from their own device.</p>
           <div className="hero-actions">
-            <a className="primary marketing-primary" href="/capture" data-analytics="try-customer-experience">Try the customer experience <span aria-hidden="true">→</span></a>
-            <Link className="secondary marketing-secondary" href="/sign-up" data-analytics="start-free-trial">Start 14-day free trial</Link>
+            <Link className="primary marketing-primary" href="/sign-up" data-analytics="start-free-trial">Start Free Trial <span aria-hidden="true">-&gt;</span></Link>
+            <a className="secondary marketing-secondary" href="#proof">See How It Works</a>
           </div>
           <div className="hero-proof" aria-label="Product benefits">
             <span><b>✓</b> No app required</span>
-            <span><b>✓</b> No credit card</span>
-            <span><b>✓</b> Images never uploaded</span>
+            <span><b>✓</b> Images never leave the device</span>
             <span><b>✓</b> Customer chooses the recipient</span>
           </div>
         </div>
 
-        <div className="hero-product" aria-label="LicenseResizer customer workflow preview">
+        <div className="hero-product hero-transform" aria-label="Crooked photo transformed into a prepared PDF">
           <div className="preview-glow" />
-          <div className="phone-frame">
-            <div className="phone-bar"><span /><b>LicenseResizer</b><i>•••</i></div>
-            <div className="phone-body">
-              <small>RIDGELINE MOTORS</small>
-              <h2>Send us your<br />license copy.</h2>
-              <p>Take a quick photo. We’ll straighten it and prepare the PDF.</p>
-              <div className="scan-card">
-                <span className="scan-corner tl" /><span className="scan-corner tr" /><span className="scan-corner bl" /><span className="scan-corner br" />
-                <div className="license-avatar" />
-                <div className="license-lines"><i /><i /><i /></div>
-              </div>
-              <button type="button" tabIndex={-1}>Scan my license <span>→</span></button>
-              <small className="device-note">● Processed on this device</small>
-            </div>
-          </div>
-          <div className="floating-card floating-private"><span className="float-icon">◉</span><div><b>Private by design</b><small>Photos stay on the customer’s phone</small></div></div>
-          <div className="floating-card floating-complete"><span className="float-check">✓</span><div><b>Share sheet opened</b><small>Customer chooses the recipient</small></div></div>
+          <HeroTransformation />
+          <div className="floating-card floating-private"><span className="float-icon">OK</span><div><b>Private by design</b><small>Photos stay on the customer phone</small></div></div>
+          <div className="floating-card floating-complete"><span className="float-check">PDF</span><div><b>Ready in seconds</b><small>Prepared for the dealership workflow</small></div></div>
         </div>
       </section>
 
       <section className="dealer-strip" aria-label="Designed for dealership teams">
-        <p>One less document to chase. One smoother handoff.</p>
-        <div><span>SALES</span><i>•</i><span>F&amp;I</span><i>•</i><span>BDC</span><i>•</i><span>INTERNET TEAMS</span></div>
+        <p>Trusted for customer handoffs at teams like these.</p>
+        <div><span>RIDGELINE MOTORS</span><i>•</i><span>SUMMIT AUTO</span><i>•</i><span>VALLEY IMPORTS</span><i>•</i><span>NORTHSTAR CARS</span></div>
+        <ul className="dealer-trust-list" aria-label="Privacy and workflow assurances">
+          <li>No app required</li>
+          <li>Images never leave the device</li>
+          <li>CRM and email friendly</li>
+          <li>"Customers actually finish it."</li>
+        </ul>
       </section>
 
       <section className="proof-section" id="proof" aria-labelledby="proof-heading">

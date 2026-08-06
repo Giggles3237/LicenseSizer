@@ -409,3 +409,58 @@ export async function correctPerspective(
     );
   });
 }
+
+const clampChannel = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
+const clampGain = (value: number) => Math.max(0.92, Math.min(1.08, value));
+
+export async function enhanceImage(source: Blob): Promise<Blob> {
+  const canvas = await sourceToCanvas(source);
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("Unable to enhance the image.");
+
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  const { data } = image;
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+  let samples = 0;
+
+  for (let offset = 0; offset < data.length; offset += 4) {
+    const luminance = data[offset] * 0.299 + data[offset + 1] * 0.587 + data[offset + 2] * 0.114;
+    if (luminance < 35 || luminance > 238) continue;
+    red += data[offset];
+    green += data[offset + 1];
+    blue += data[offset + 2];
+    samples += 1;
+  }
+
+  if (samples === 0) {
+    return source;
+  }
+
+  red /= samples;
+  green /= samples;
+  blue /= samples;
+  const neutral = (red + green + blue) / 3;
+  const gains = [
+    clampGain(neutral / Math.max(1, red)),
+    clampGain(neutral / Math.max(1, green)),
+    clampGain(neutral / Math.max(1, blue)),
+  ];
+  const contrast = 1.055;
+
+  for (let offset = 0; offset < data.length; offset += 4) {
+    data[offset] = clampChannel((data[offset] * gains[0] - 128) * contrast + 128);
+    data[offset + 1] = clampChannel((data[offset + 1] * gains[1] - 128) * contrast + 128);
+    data[offset + 2] = clampChannel((data[offset + 2] * gains[2] - 128) * contrast + 128);
+  }
+
+  context.putImageData(image, 0, 0);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Unable to encode the enhanced image."))),
+      "image/jpeg",
+      0.92,
+    );
+  });
+}

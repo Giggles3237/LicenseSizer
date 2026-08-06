@@ -36,6 +36,13 @@
       "when": 1784761351679,
       "tag": "0004_rainy_phalanx",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785288524102,
+      "tag": "0005_abandoned_whizzer",
+      "breakpoints": true
     }
   ]
 }

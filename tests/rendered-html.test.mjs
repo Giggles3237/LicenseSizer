@@ -459,10 +459,17 @@ test("crop review uses the Canny suggestion and retains endpoint handles without
   assert.match(component, /preparePdfDraft/);
   assert.match(component, /renderPdfFirstPageToImage/);
   assert.match(component, /isPdfFile/);
+  assert.match(component, /enhanceImage/);
+  assert.match(component, /Enhancing the image/);
+  assert.match(component, /activeItem\.enhanced \? "Enhanced" : "Enhance"/);
+  assert.match(component, /Enhanced with light color correction and contrast/);
   assert.doesNotMatch(component, /rotateAdjusted/);
   assert.match(component, /Back is always optional/);
   assert.doesNotMatch(component, /Capture required back/);
   assert.match(processing, /id: "canny" as const/);
+  assert.match(processing, /export async function enhanceImage/);
+  assert.match(processing, /clampGain\(neutral \/ Math\.max\(1, blue\)\)/);
+  assert.match(processing, /const contrast = 1\.055/);
   assert.doesNotMatch(processing, /id: "background"|id: "gradient"|id: "framing"/);
   assert.doesNotMatch(styles, /\.crop-line::before|\.crop-line\.selected::before/);
   assert.match(styles, /\.line-handle\.selected/);

@@ -32,28 +32,28 @@ export default async function DealerCapturePage({ params }: { params: Promise<{ 
         <p>{profile.landingDescription}</p>
         <div className="dealer-visit-summary" aria-label="Customer request details">
           <div><span>Needed for</span><strong>Test drive or purchase paperwork</strong></div>
-          <div><span>Estimated time</span><strong>About 2 minutes</strong></div>
+          <div><span>Estimated time</span><strong>Under 30 seconds</strong></div>
           <div><span>Send to</span><strong>{destinationDetail}</strong></div>
         </div>
-        <div className="dealer-hero-actions"><Link className="dealer-start-button" href={`/d/${profile.publicSlug}/scan`}>{profile.landingCta}<span aria-hidden="true">-&gt;</span></Link><span>No account required. Use your own phone.</span></div>
+        <div className="dealer-hero-actions"><Link className="dealer-start-button" href={`/d/${profile.publicSlug}/scan`}>Take a photo<span aria-hidden="true">-&gt;</span></Link><span>No app required. Private on this device.</span></div>
       </div>
       <div className="dealer-intake-card">
         {profile.logoUrl ? <span className="dealer-card-logo" role="img" aria-label={`${profile.dealerName} logo`} style={{ backgroundImage: `url(${profile.logoUrl})` }} /> : <span className="dealer-initial">{profile.dealerName.slice(0, 1)}</span>}
         <span className="dealer-card-kicker">Customer document request</span>
         <h2>Before you arrive</h2>
-        <p>Prepare a true-size license PDF and choose the app you want to use to send it to the dealership.</p>
+        <p>Take a photo, confirm it looks right, and share the prepared PDF with the dealership.</p>
         <ol>
-          <li><span>1</span><strong>Photograph the front</strong><small>The back is optional if requested.</small></li>
-          <li><span>2</span><strong>Review the framing</strong><small>Nothing leaves your device while the PDF is created.</small></li>
-          <li><span>3</span><strong>Send it yourself</strong><small>Confirm the recipient before sending.</small></li>
+          <li><span>1</span><strong>Take a photo</strong><small>No app or account required.</small></li>
+          <li><span>2</span><strong>Looks good?</strong><small>Confirm the crop on this device.</small></li>
+          <li><span>3</span><strong>Share your PDF</strong><small>You choose the app and recipient.</small></li>
         </ol>
       </div>
     </section>
 
     <section className="dealer-reassurance-section" aria-label="Privacy and sizing details">
       <article><span className="dealer-shield" aria-hidden="true">OK</span><h2>Your license stays private.</h2><p>Photos and PDFs are processed in this browser. LicenseResizer does not store your license image or document.</p></article>
-      <article><span className="dealer-shield" aria-hidden="true">1:1</span><h2>True-size PDF output.</h2><p>The final PDF places the license at nominal ID-1 size so the dealership gets a clean copy for its workflow.</p></article>
-      <article><span className="dealer-shield" aria-hidden="true">You</span><h2>You choose where it goes.</h2><p>Your device opens the sharing option. Choose the app, verify the recipient, and send the attached PDF.</p></article>
+      <article><span className="dealer-shield" aria-hidden="true">30</span><h2>Ready in under 30 seconds.</h2><p>The page straightens the photo and prepares a clean PDF for the dealership.</p></article>
+      <article><span className="dealer-shield" aria-hidden="true">You</span><h2>You stay in control.</h2><p>Your device opens the sharing option. Choose the app, verify the recipient, and send the attached PDF.</p></article>
     </section>
 
     {(profile.publicAddress || profile.publicPhone || profile.publicEmail || profile.websiteUrl || profile.facebookUrl) && <section className="dealer-contact-section"><div><span className="dealer-eyebrow">Contact us</span><h2>{profile.dealerName}</h2></div><address>

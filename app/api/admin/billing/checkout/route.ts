@@ -1,4 +1,4 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { getBillingSubscription, getStripe, monthlyPdfLimitForPlan, priceIdForPlan, saveBillingSubscription, type PlanType } from "../../../../../lib/billing";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,17 @@ export async function POST(request: Request) {
   const stripe = getStripe();
   const existing = await getBillingSubscription(session.orgId);
   const organization = await (await clerkClient()).organizations.getOrganization({ organizationId: session.orgId });
-  const customerId = existing?.stripeCustomerId || (await stripe.customers.create({ name: organization.name, metadata: { organizationId: session.orgId } })).id;
+  const user = await currentUser();
+  const customerId = existing?.stripeCustomerId || (await stripe.customers.create({
+    name: organization.name,
+    email: user?.primaryEmailAddress?.emailAddress,
+    metadata: {
+      organizationId: session.orgId,
+      clerkUserId: session.userId,
+      adminName: user?.fullName || "",
+      adminEmail: user?.primaryEmailAddress?.emailAddress || "",
+    },
+  })).id;
   if (!existing) await saveBillingSubscription({ organizationId: session.orgId, stripeCustomerId: customerId, planType, monthlyPdfLimit: monthlyPdfLimitForPlan(planType) });
   const trialDays = existing?.stripeSubscriptionId ? 0 : Math.max(0, Math.min(90, Number(process.env.STRIPE_TRIAL_DAYS || 14)));
   const trialAnalyticsEligible = trialDays > 0 ? "true" : "false";

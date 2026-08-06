@@ -1,5 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { claimTrialStartedAnalyticsEvent, getStripe, hasProductAccess, syncStripeSubscription } from "../../../../../lib/billing";
+import { getDealerProfile } from "../../../../../lib/dealer-data";
+import { notifyTrialStarted } from "../../../../../lib/marketing-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -21,5 +23,8 @@ export async function POST(request: Request) {
     subscription.status === "trialing" &&
     await claimTrialStartedAnalyticsEvent(session.orgId),
   );
+  if (subscription?.status === "trialing") {
+    await notifyTrialStarted(session.orgId, await getDealerProfile(session.orgId));
+  }
   return Response.json({ subscription, hasAccess: hasProductAccess(subscription?.status), trackTrialStarted });
 }

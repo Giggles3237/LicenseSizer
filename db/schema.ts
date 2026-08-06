@@ -61,3 +61,24 @@ export const billingSubscriptions = pgTable("billing_subscriptions", {
   uniqueIndex("billing_subscriptions_customer_idx").on(table.stripeCustomerId),
   uniqueIndex("billing_subscriptions_subscription_idx").on(table.stripeSubscriptionId),
 ]);
+
+export const marketingContacts = pgTable("marketing_contacts", {
+  organizationId: text("organization_id").primaryKey().references(() => dealerProfiles.organizationId, { onDelete: "cascade" }),
+  clerkUserId: text("clerk_user_id"),
+  contactName: text("contact_name").notNull(),
+  contactEmail: text("contact_email").notNull(),
+  contactPhone: text("contact_phone"),
+  role: text("role"),
+  crm: text("crm"),
+  referralSource: text("referral_source"),
+  notes: text("notes"),
+  emailOptIn: boolean("email_opt_in").notNull().default(true),
+  internalSignupNotifiedAt: timestamp("internal_signup_notified_at", { withTimezone: true }),
+  trialStartedNotifiedAt: timestamp("trial_started_notified_at", { withTimezone: true }),
+  thankYouSentAt: timestamp("thank_you_sent_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("marketing_contacts_email_idx").on(table.contactEmail),
+  index("marketing_contacts_user_idx").on(table.clerkUserId),
+]);

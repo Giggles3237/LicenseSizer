@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, KeyboardEvent, PointerEvent, useCallback, useEffect, useRef, useState } from "react";
-import { analyzeImage, correctPerspective, DEFAULT_CORNERS, detectDocumentCandidates, DetectionResult, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
+import { analyzeImage, correctPerspective, DEFAULT_CORNERS, detectDocumentCandidates, DetectionResult, enhanceImage, Point, QualityResult, sourceToCanvas, validateImage } from "../lib/image-processing";
 import { mapGuideToVideoCorners } from "../lib/camera-geometry";
 import { cornersToEdgeLines, coveredViewportCornersToSource, edgeLinesToCorners, type EdgeLine } from "../lib/document-geometry";
 import { createDevelopmentAnalysisView, DEVELOPMENT_ANALYSIS_VIEWS, type DevelopmentAnalysisView } from "../lib/development-analysis";
@@ -18,6 +18,7 @@ type CapturedSide = {
   cropAspect: number;
   corrected: Blob;
   correctedUrl: string;
+  enhanced: boolean;
   corners: [Point, Point, Point, Point];
 };
 type PdfQuota = { allowed: boolean; used: number; limit: number | null; resetsAt: string | null };
@@ -27,22 +28,20 @@ const LINE_NAMES = ["Top", "Right", "Bottom", "Left"] as const;
 const framingCopy = (detection: DetectionResult | null) => {
   if (detection?.automaticStatus === "analyzer-unavailable") {
     return {
-      intro: "Automatic framing could not start. Position each line around the document; the image will still be corrected when you continue.",
+      intro: "We found your license. Adjust if needed, then continue.",
       badge: "Automatic framing unavailable — manual adjustment required",
       ready: false,
     };
   }
   if (detection?.found) {
     return {
-      intro: detection.automaticStatus === "fallback-detected"
-        ? "A compatible on-device detector selected this framing. Confirm that the outline sits just inside all four edges."
-        : "We’ve selected the strongest framing. Confirm that the outline sits just inside all four edges.",
+      intro: "We found your license. Adjust if needed, then continue.",
       badge: detection.automaticStatus === "fallback-detected" ? "Fallback framing ready to review" : "Framing ready to review",
       ready: true,
     };
   }
   return {
-    intro: "We couldn’t identify all four edges confidently. Position each line or round handle around the document before continuing.",
+    intro: "We found your license. Adjust if needed, then continue.",
     badge: "Manual framing required",
     ready: false,
   };
@@ -96,7 +95,7 @@ const rotateCornersCounterClockwise = (
 ): [Point, Point, Point, Point] => corners.map(({ x, y }) => ({ x: y, y: 1 - x })) as [Point, Point, Point, Point];
 
 function Progress({ stage }: { stage: Stage }) {
-  const steps = ["Capture", "Refine", "Finish"];
+  const steps = ["Take a photo", "Looks good?", "Share your PDF"];
   const current = stage === "start" || stage === "capture" ? 0 : stage === "review" || stage === "ready" ? 1 : 2;
   return (
     <ol className="progress" aria-label={`Step ${current + 1} of 3: ${steps[current]}`}>
@@ -109,21 +108,29 @@ function Progress({ stage }: { stage: Stage }) {
   );
 }
 
-function EdgeLineHandles({
-  lines,
-  selectedLine,
+const CORNER_LABELS = ["Top left", "Top right", "Bottom right", "Bottom left"] as const;
+
+function CornerHandles({
+  corners,
   onKey,
   onStart,
 }: {
-  lines: [EdgeLine, EdgeLine, EdgeLine, EdgeLine];
-  selectedLine: number;
-  onKey: (event: KeyboardEvent<HTMLButtonElement>, lineIndex: number, end: "start" | "end") => void;
-  onStart: (event: PointerEvent<HTMLButtonElement>, lineIndex: number, end: "start" | "end") => void;
+  corners: [Point, Point, Point, Point];
+  onKey: (event: KeyboardEvent<HTMLButtonElement>, cornerIndex: number) => void;
+  onStart: (event: PointerEvent<HTMLButtonElement>, cornerIndex: number) => void;
 }) {
-  return lines.flatMap((line, lineIndex) => (["start", "end"] as const).map((end, endIndex) => {
-    const point = line[end];
-    return <button key={`${lineIndex}-${end}`} className={`crop-handle line-handle${selectedLine === lineIndex ? " selected" : ""}`} style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }} aria-label={`${LINE_NAMES[lineIndex]} edge, handle ${endIndex + 1} of 2. Drag to tilt this line, or use arrow keys.`} onKeyDown={(event) => onKey(event, lineIndex, end)} onPointerDown={(event) => onStart(event, lineIndex, end)}><span aria-hidden="true" /></button>;
-  }));
+  return corners.map((point, cornerIndex) => (
+    <button
+      key={CORNER_LABELS[cornerIndex]}
+      className="crop-handle corner-handle"
+      style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }}
+      aria-label={`${CORNER_LABELS[cornerIndex]} corner. Drag to adjust the framing, or use arrow keys.`}
+      onKeyDown={(event) => onKey(event, cornerIndex)}
+      onPointerDown={(event) => onStart(event, cornerIndex)}
+    >
+      <span aria-hidden="true" />
+    </button>
+  ));
 }
 
 export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_PROFILE }: { deliveryProfile?: DealerDeliveryProfile }) {
@@ -174,7 +181,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
   const analysisRequestRef = useRef(0);
   const preparationRequestRef = useRef(0);
   const dragHandle = useRef<
-    | { kind: "handle"; line: number; end: "start" | "end" }
+    | { kind: "corner"; corner: number }
     | { kind: "line"; line: number; pointer: Point; initial: EdgeLine }
     | null
   >(null);
@@ -473,34 +480,51 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     }
   };
 
-  const updateLineEnd = (lineIndex: number, end: "start" | "end", x: number, y: number) => {
-    setEdgeLines((current) => current.map((line, index) => index === lineIndex
-      ? { ...line, [end]: { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) } }
-      : line) as [EdgeLine, EdgeLine, EdgeLine, EdgeLine]);
+  const updateCorner = (cornerIndex: number, x: number, y: number) => {
+    const point = { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+    setEdgeLines((current) => {
+      const next = current.map((line) => ({ start: { ...line.start }, end: { ...line.end } })) as [EdgeLine, EdgeLine, EdgeLine, EdgeLine];
+      if (cornerIndex === 0) {
+        next[0].start = point;
+        next[3].end = point;
+      } else if (cornerIndex === 1) {
+        next[0].end = point;
+        next[1].start = point;
+      } else if (cornerIndex === 2) {
+        next[1].end = point;
+        next[2].start = point;
+      } else {
+        next[2].end = point;
+        next[3].start = point;
+      }
+      return next;
+    });
   };
 
-  const moveFromPointer = (event: PointerEvent<HTMLElement>, lineIndex: number, end: "start" | "end") => {
+  const moveCornerFromPointer = (event: PointerEvent<HTMLElement>, cornerIndex: number) => {
     const bounds = cropRef.current?.getBoundingClientRect();
     if (!bounds) return;
-    updateLineEnd(lineIndex, end, (event.clientX - bounds.left) / bounds.width, (event.clientY - bounds.top) / bounds.height);
+    updateCorner(cornerIndex, (event.clientX - bounds.left) / bounds.width, (event.clientY - bounds.top) / bounds.height);
   };
 
-  const onHandleKey = (event: KeyboardEvent<HTMLButtonElement>, lineIndex: number, end: "start" | "end") => {
+  const onCornerKey = (event: KeyboardEvent<HTMLButtonElement>, cornerIndex: number) => {
     const step = event.shiftKey ? 0.025 : 0.006;
-    const point = edgeLines[lineIndex][end];
-    if (event.key === "ArrowLeft") updateLineEnd(lineIndex, end, point.x - step, point.y);
-    else if (event.key === "ArrowRight") updateLineEnd(lineIndex, end, point.x + step, point.y);
-    else if (event.key === "ArrowUp") updateLineEnd(lineIndex, end, point.x, point.y - step);
-    else if (event.key === "ArrowDown") updateLineEnd(lineIndex, end, point.x, point.y + step);
+    const corners = edgeLinesToCorners(edgeLines);
+    const point = corners?.[cornerIndex];
+    if (!point) return;
+    if (event.key === "ArrowLeft") updateCorner(cornerIndex, point.x - step, point.y);
+    else if (event.key === "ArrowRight") updateCorner(cornerIndex, point.x + step, point.y);
+    else if (event.key === "ArrowUp") updateCorner(cornerIndex, point.x, point.y - step);
+    else if (event.key === "ArrowDown") updateCorner(cornerIndex, point.x, point.y + step);
     else return;
     event.preventDefault();
   };
 
-  const startLineDrag = (event: PointerEvent<HTMLButtonElement>, lineIndex: number, end: "start" | "end") => {
-    setSelectedLine(lineIndex);
-    dragHandle.current = { kind: "handle", line: lineIndex, end };
+  const startCornerDrag = (event: PointerEvent<HTMLButtonElement>, cornerIndex: number) => {
+    setSelectedLine(cornerIndex);
+    dragHandle.current = { kind: "corner", corner: cornerIndex };
     event.currentTarget.setPointerCapture(event.pointerId);
-    moveFromPointer(event, lineIndex, end);
+    moveCornerFromPointer(event, cornerIndex);
   };
 
   const startWholeLineDrag = (event: PointerEvent<HTMLButtonElement>, lineIndex: number) => {
@@ -521,8 +545,8 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     const active = dragHandle.current;
     const bounds = cropRef.current?.getBoundingClientRect();
     if (!active || !bounds) return;
-    if (active.kind === "handle") {
-      moveFromPointer(event, active.line, active.end);
+    if (active.kind === "corner") {
+      moveCornerFromPointer(event, active.corner);
       return;
     }
     const pointer = { x: (event.clientX - bounds.left) / bounds.width, y: (event.clientY - bounds.top) / bounds.height };
@@ -559,6 +583,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
         cropAspect: draftAspect,
         corrected,
         correctedUrl: URL.createObjectURL(corrected),
+        enhanced: false,
         corners: viewportCorners.map((point) => ({ ...point })) as [Point, Point, Point, Point],
       };
       if (activeSide === "front") {
@@ -600,6 +625,30 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
     setQuality(null);
     setMessage("");
     setStage("review");
+  };
+
+  const enhanceActiveImage = async () => {
+    const item = activeSide === "front" ? front : back;
+    if (!item || item.enhanced) return;
+    setBusy(true);
+    setMessage("Enhancing the image…");
+    try {
+      const enhanced = await enhanceImage(item.corrected);
+      const enhancedItem: CapturedSide = {
+        ...item,
+        corrected: enhanced,
+        correctedUrl: URL.createObjectURL(enhanced),
+        enhanced: true,
+      };
+      URL.revokeObjectURL(item.correctedUrl);
+      if (activeSide === "front") setFront(enhancedItem);
+      else setBack(enhancedItem);
+      setMessage("Enhanced with light color correction and contrast.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The image could not be enhanced.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const beginCapture = (side: Side) => {
@@ -701,14 +750,14 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
         {stage === "start" && (
           <div className="start-screen">
             <div className="eyebrow">{deliveryProfile.publicSlug ? `Private request from ${deliveryProfile.dealerName}` : "Private • precise • prepared on your device"}</div>
-            <h1>{deliveryProfile.publicSlug ? "Prepare your license for the dealership." : <>Your license copy, <em>perfectly prepared.</em></>}</h1>
-            <p className="lede">Photograph the front of your license. We’ll straighten it and create a true-size PDF, ready for you to share with {deliveryProfile.publicSlug ? deliveryProfile.dealerName : "the recipient you choose"}.</p>
-            <button className="primary large" type="button" disabled={!interactive} aria-busy={!interactive} onClick={() => beginCapture("front")}>Begin securely <span aria-hidden="true">→</span></button>
+            <h1>{deliveryProfile.publicSlug ? <>Send your license to <em>{deliveryProfile.dealerName}</em>.</> : <>Your license copy, <em>perfectly prepared.</em></>}</h1>
+            <p className="lede">Take a photo, confirm it looks right, and share a clean PDF with {deliveryProfile.publicSlug ? deliveryProfile.dealerName : "the recipient you choose"}.</p>
+            <button className="primary large" type="button" disabled={!interactive} aria-busy={!interactive} onClick={() => beginCapture("front")}>Take a photo <span aria-hidden="true">→</span></button>
             <p className="microcopy"><span className="lock" aria-hidden="true">●</span> Your images stay on this device and are cleared when you finish.</p>
             <div className="trust-row" aria-label="Product benefits">
-              <div><strong>85.60 × 53.98 mm</strong><span>Nominal ID-1 size</span></div>
-              <div><strong>Front first</strong><span>Back is always optional</span></div>
-              <div><strong>No account</strong><span>Clear when finished</span></div>
+              <div><strong>No app required</strong><span>Works in your browser</span></div>
+              <div><strong>Private on this device</strong><span>Images are not uploaded</span></div>
+              <div><strong>Ready in under 30 seconds</strong><span>Front first, back optional</span></div>
             </div>
             {!deliveryProfile.publicSlug && <div className="dealer-cta"><div><span className="step-kicker">For dealerships</span><strong>Give every customer a private, branded handoff link.</strong><p>Set document rules once, invite your team, and track PDF preparation and sharing options without storing license images.</p></div><a className="secondary" href="/dashboard">Start dealership trial</a></div>}
           </div>
@@ -720,7 +769,7 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
               <div><span className="step-kicker">{activeSide === "front" ? "Front of license" : "Optional second side"}</span><h1>Photograph the {sideLabel(activeSide)}</h1></div>
               {activeSide === "back" && <button className="text-button" onClick={() => { setActiveSide("front"); setStage("ready"); }}>Skip this step</button>}
             </div>
-            <p>Set the license on a plain, contrasting surface. Keep every corner in view and use soft, even light.</p>
+            <p>Place the license on a plain surface and keep all four corners in view.</p>
             {cameraOpen ? (
               <div className={`camera-wrap ${cameraReady ? "camera-ready" : ""}`}>
                 <video ref={videoRef} muted playsInline autoPlay onClick={() => void videoRef.current?.play()} aria-label={`Live camera preview for license ${sideLabel(activeSide)}`} />
@@ -733,8 +782,8 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
                   <i className="guide-corner top-left" /><i className="guide-corner top-right" /><i className="guide-corner bottom-right" /><i className="guide-corner bottom-left" />
                 </div>
                 <div className="camera-prompt" role="status">
-                  <strong>{cameraReady ? "Center the full license inside the frame" : "Preparing your camera…"}</strong>
-                  <span>{cameraReady ? "Hold steady—we’ll refine the edges next" : "Camera access remains on this device"}</span>
+                  <strong>{cameraReady ? "Center the license, then tap the button" : "Preparing your camera…"}</strong>
+                  <span>{cameraReady ? "We will check the edges next" : "Camera access remains on this device"}</span>
                 </div>
                 <div className="camera-actions">
                   <button className="gallery-shortcut" onClick={() => fileRef.current?.click()}><span aria-hidden="true">▧</span> Files</button>
@@ -744,8 +793,8 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
               </div>
             ) : (
               <div className="capture-choices">
-                <button className="choice-card" onClick={() => void startCamera()} disabled={busy}><span className="choice-icon camera-icon" aria-hidden="true" /><strong>Take guided photo</strong><small>Use the live frame to line up the license</small></button>
-                <button className="choice-card" onClick={() => fileRef.current?.click()} disabled={busy}><span className="choice-icon upload-icon" aria-hidden="true">↑</span><strong>Add photo or PDF</strong><small>Use the photo library or files on this device</small></button>
+                <button className="choice-card primary-choice" onClick={() => void startCamera()} disabled={busy}><span className="choice-icon camera-icon" aria-hidden="true" /><strong>Take a photo</strong><small>Use the camera on this device</small></button>
+                <button className="choice-card secondary-choice" onClick={() => fileRef.current?.click()} disabled={busy}><span className="choice-icon upload-icon" aria-hidden="true">↑</span><strong>Choose existing file</strong><small>Photo library, files, or PDF</small></button>
               </div>
             )}
             <input ref={fileRef} className="visually-hidden" type="file" accept="image/*,application/pdf,.pdf" onChange={chooseFile} />
@@ -758,16 +807,18 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
 
         {stage === "review" && draftUrl && (
           <div className="panel review-panel">
-            <div className="panel-heading"><div><span className="step-kicker">Refine {sideLabel(activeSide)}</span><h1>Fine-tune the framing</h1></div></div>
-            <div className="photo-toolbar" aria-label="Photo actions"><span>Original photo</span><div><button type="button" onClick={() => void rotateDraft()} disabled={busy} aria-label="Rotate photo 90 degrees clockwise"><span aria-hidden="true">↻</span> Rotate</button><button type="button" onClick={() => beginCapture(activeSide)} disabled={busy}><span aria-hidden="true">↺</span> Replace</button></div></div>
-            <p>{activeFramingCopy.intro} Drag any line or round handle for a precise fit.</p>
-            <div className={`detection-badge ${activeFramingCopy.ready ? "found" : "manual"}`}><span aria-hidden="true">{activeFramingCopy.ready ? "✓" : "!"}</span>{activeFramingCopy.badge}</div>
+            <div className="panel-heading"><div><span className="step-kicker">Looks good?</span><h1>Check the framing</h1></div></div>
+            <p>{activeFramingCopy.intro}</p>
+            <details className="photo-toolbar overflow-toolbar">
+              <summary aria-label="More photo actions">More</summary>
+              <div><button type="button" onClick={() => void rotateDraft()} disabled={busy} aria-label="Rotate photo 90 degrees clockwise"><span aria-hidden="true">↻</span> Rotate</button><button type="button" onClick={() => beginCapture(activeSide)} disabled={busy}><span aria-hidden="true">↺</span> Replace</button></div>
+            </details>
             <div className="crop-stage" style={{ aspectRatio: draftAspect, width: `min(100%, calc(var(--crop-stage-height, 65vh) * ${draftAspect}))` }} ref={cropRef} onPointerMove={moveActiveDrag} onPointerUp={() => { dragHandle.current = null; }} onPointerCancel={() => { dragHandle.current = null; }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={draftUrl} alt={`Uncropped license ${sideLabel(activeSide)}`} draggable={false} />
               {cropCorners && <svg className="crop-selection" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path className="crop-mask" fillRule="evenodd" d={`M0 0H100V100H0Z M${cropCorners.map((point) => `${point.x * 100} ${point.y * 100}`).join("L")}Z`} /><polygon className="crop-boundary-halo" points={cropCorners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")} /><polygon className="crop-boundary" points={cropCorners.map((point) => `${point.x * 100},${point.y * 100}`).join(" ")} /></svg>}
               {cropLines.map((style, index) => <button type="button" className={`crop-line${selectedLine === index ? " selected" : ""}`} style={style} key={LINE_NAMES[index]} aria-label={`Select and move ${LINE_NAMES[index]} crop line`} aria-pressed={selectedLine === index} onPointerDown={(event) => startWholeLineDrag(event, index)} />)}
-              <EdgeLineHandles lines={edgeLines} selectedLine={selectedLine} onKey={onHandleKey} onStart={startLineDrag} />
+              {cropCorners && <CornerHandles corners={cropCorners} onKey={onCornerKey} onStart={startCornerDrag} />}
             </div>
             {quality && <div className={`quality ${quality.status}`}><span aria-hidden="true">{quality.status === "pass" ? "✓" : "!"}</span><div><strong>{quality.title}</strong><p>{quality.detail}</p></div></div>}
             {process.env.NODE_ENV === "development" && <section className="development-analysis" aria-label="Development image analysis">
@@ -794,31 +845,36 @@ export default function LicenseResizerApp({ deliveryProfile = DEFAULT_DELIVERY_P
                 </div>
               )}
             </section>}
-            <div className="review-actions"><button className="primary" onClick={acceptCrop} disabled={busy}>Confirm framing <span aria-hidden="true">→</span></button></div>
+            <div className="review-actions"><button className="primary large" onClick={acceptCrop} disabled={busy}>Continue <span aria-hidden="true">→</span></button></div>
           </div>
         )}
 
         {stage === "ready" && front && activeItem && (
           <div className="panel ready-panel">
-            <span className="step-kicker">{sideLabel(activeSide)} prepared</span><h1>Your image is ready</h1><p>We’ve straightened the perspective and preserved the detail. Make any final framing adjustment before creating your PDF.</p>
+            <span className="step-kicker">Finish</span><h1>Looks good?</h1><p>We straightened the image and preserved the detail. Create your PDF when you are ready.</p>
             <figure className="adjusted-preview">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={activeItem.correctedUrl} alt={`Adjusted license ${sideLabel(activeSide)}`} />
               <figcaption><span className="status-dot" />Straightened and ready</figcaption>
             </figure>
-            <div className="adjusted-tools">
-              <button className="secondary" onClick={() => editCrop(activeSide)} disabled={busy}>Adjust framing</button>
-              <button className="text-button" onClick={() => beginCapture(activeSide)} disabled={busy}>Replace photo</button>
-            </div>
-            <div className="ready-actions">{activeSide === "front" && !back && deliveryProfile.backMode !== "front-only" ? <><button className="secondary optional-back" onClick={() => beginCapture("back")} disabled={busy}><span>＋</span><span>Add the back<small>Optional</small></span></button><button className="primary" onClick={generatePdf} disabled={busy}>Create my PDF <span aria-hidden="true">→</span></button></> : <button className="primary" onClick={generatePdf} disabled={busy}>Create my PDF <span aria-hidden="true">→</span></button>}</div>
+            <div className="ready-actions"><button className="primary large create-pdf-button" onClick={generatePdf} disabled={busy}>Create PDF <span aria-hidden="true">→</span></button></div>
+            <details className="optional-actions">
+              <summary>Optional changes</summary>
+              <div>
+                {activeSide === "front" && !back && deliveryProfile.backMode !== "front-only" && <button className="secondary optional-back" onClick={() => beginCapture("back")} disabled={busy}><span>＋</span><span>Add back<small>Optional</small></span></button>}
+                <button className="secondary" onClick={() => editCrop(activeSide)} disabled={busy}>Adjust framing</button>
+                <button className="secondary" onClick={() => void enhanceActiveImage()} disabled={busy || activeItem.enhanced}>{activeItem.enhanced ? "Enhanced" : "Enhance"}</button>
+                <button className="text-button" onClick={() => beginCapture(activeSide)} disabled={busy}>Replace photo</button>
+              </div>
+            </details>
           </div>
         )}
 
         {stage === "complete" && pdfUrl && (
           <div className="panel complete-panel">
-            <div className="success-mark" aria-hidden="true">OK</div><span className="step-kicker">Ready to share</span><h1>Your PDF is prepared</h1><p>Your true-size copy is ready on this device. Copy a destination if needed, then share the attached PDF.</p>
+            <div className="success-mark" aria-hidden="true">PDF</div><span className="step-kicker">Success</span><h1>Your PDF is ready</h1><p>Share it with {deliveryProfile.publicSlug ? deliveryProfile.dealerName : "your recipient"} now, or download a copy to this device.</p>
             <div className="file-card"><div className="pdf-badge">PDF</div><div><a className="pdf-filename-link" href={pdfUrl} download={activePdfFilename} onClick={() => postActivity("pdf_downloaded", "download")}>{activePdfFilename}</a><span>{options.pageSize === "letter" ? "US Letter" : "A4"} - True-size card placement</span></div></div>
-            <div className="delivery-card simplified"><div><span className="step-kicker">Send to</span><strong>{deliveryProfile.publicSlug ? deliveryProfile.destinationName : "Your recipient"}</strong></div><div className="destination-list">{deliveryEmail && <div className="destination-value"><span>Email</span><code>{deliveryEmail}</code><button className="text-button" type="button" onClick={() => void copyDestination(deliveryEmail, "Email")}>Copy</button></div>}{deliveryPhone && <div className="destination-value"><span>Text</span><code>{deliveryPhone}</code><button className="text-button" type="button" onClick={() => void copyDestination(deliveryPhone, "Text")}>Copy</button></div>}</div>{copiedDestination && <span className="copy-status" role="status">{copiedDestination}</span>}</div>
+            <details className="delivery-card simplified destination-details"><summary>Destination details</summary><div><span className="step-kicker">Send to</span><strong>{deliveryProfile.publicSlug ? deliveryProfile.destinationName : "Your recipient"}</strong></div><div className="destination-list">{deliveryEmail && <div className="destination-value"><span>Email</span><code>{deliveryEmail}</code><button className="text-button" type="button" onClick={() => void copyDestination(deliveryEmail, "Email")}>Copy</button></div>}{deliveryPhone && <div className="destination-value"><span>Text</span><code>{deliveryPhone}</code><button className="text-button" type="button" onClick={() => void copyDestination(deliveryPhone, "Text")}>Copy</button></div>}</div>{copiedDestination && <span className="copy-status" role="status">{copiedDestination}</span>}</details>
             <div className="complete-actions">{canShare && <button className="primary large" onClick={sharePdf}>Share <span aria-hidden="true">↗</span></button>}<a className={canShare ? "secondary download" : "primary large download"} href={pdfUrl} download={activePdfFilename} onClick={() => postActivity("pdf_downloaded", "download")}>Download PDF <span aria-hidden="true">↓</span></a></div>
             <button className="clear-button" onClick={startOver}>Start over & clear images</button>
           </div>
