@@ -69,7 +69,7 @@ export default function Home() {
           <a href="#how-it-works">How it works</a>
           <a href="#pricing">Plans</a>
           <a href="#faq">FAQ</a>
-          <Link href="/sign-in">Sign in</Link>
+          <Link className="nav-sign-in" href="/sign-in">Sign in</Link>
           <Link className="nav-cta" href="/sign-up" data-analytics="start-free-trial">Start free trial <span aria-hidden="true">↗</span></Link>
         </div>
       </nav>
@@ -105,7 +105,7 @@ export default function Home() {
           <li>No app required</li>
           <li>Images never leave the device</li>
           <li>CRM and email friendly</li>
-          <li>"Customers actually finish it."</li>
+          <li>&quot;Customers actually finish it.&quot;</li>
         </ul>
       </section>
 
