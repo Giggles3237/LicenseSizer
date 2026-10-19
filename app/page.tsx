@@ -4,8 +4,8 @@ import LicenseResizerBrand from "./brand-logo";
 
 const APP_STORE_URL = "https://apps.apple.com/us/app/licenseresizer/id6820282296";
 const ENTERPRISE_URL = "mailto:support@licenseresizer.com?subject=LicenseResizer%20enterprise%20inquiry";
-const title = "LicenseResizer for iPhone — True-size license PDFs · $2.99";
-const description = "Scan, straighten, and create true-size license PDFs privately on your iPhone. $2.99 on the US App Store. No account or subscription. Enterprise inquiries welcome.";
+const title = "LicenseResizer for Auto Sales — True-size PDFs on iPhone";
+const description = "Less license-copy preparation for automotive dealers and salespeople. Capture true-size PDFs on iPhone for deal paperwork. $2.99. Dealership team inquiries welcome.";
 export const metadata: Metadata = { title, description, alternates: { canonical: "/" }, openGraph: { title, description, type: "website", images: [{ url: "/LicenseResizerLogo.webp", alt: "LicenseResizer" }] }, twitter: { card: "summary", title, description, images: ["/LicenseResizerLogo.webp"] }, other: { "apple-itunes-app": "app-id=6820282296" } };
 
 function MockLicense({ small = false }: { small?: boolean }) {
@@ -44,12 +44,13 @@ function HeroTransformation() {
 }
 
 const faqs = [
+  { question: "Who is LicenseResizer for?", answer: "Automotive salespeople and dealership staff who collect customers’ driver’s licenses and prepare copies for deal paperwork. The iPhone app uses camera capture, perspective correction, and actual-size PDF output to reduce manual document preparation." },
   { question: "Is this a subscription?", answer: "No. LicenseResizer for iPhone is a $2.99 purchase on the US App Store, with no account, subscription, or advertisements. Prices in other regions may vary; check your local App Store." },
   { question: "Which iPhones can use LicenseResizer?", answer: "The app requires iOS 17.0 or later. Download it from the App Store on a compatible iPhone." },
   { question: "Do my license photos get uploaded?", answer: "The iPhone app processes license photos and PDFs on your device. LicenseResizer does not upload or retain your document data. Files leave the app only when you choose to save, print, or share them." },
   { question: "Can I include the back of the license?", answer: "Yes. Create a front-only or front-and-back PDF, then use the native Share, Save, or Print actions." },
   { question: "How do I print at the correct size?", answer: "The app places the card at standard ID-1 dimensions (85.60 × 53.98 mm) on a US Letter PDF. Use US Letter paper and Actual Size or 100% in your printer settings. Turn off Fit, Scale to Fit, and Shrink Oversized Pages." },
-  { question: "What if my organization needs a different workflow?", answer: "Contact support@licenseresizer.com to discuss your organization’s needs. Enterprise arrangements are discussed individually; the $2.99 App Store price is for the iPhone app." },
+  { question: "What about a sales team or multiple locations?", answer: "Contact support@licenseresizer.com with your dealership’s team size, locations, and license-collection requirements. We’ll discuss the fit for your workflow. Enterprise inquiries are separate from the $2.99 iPhone app purchase." },
   { question: "Can existing web customers still sign in?", answer: "Yes. Use Web sign in to access your existing workspace and billing. The web capture flow also remains available. The iPhone app purchase is separate from existing web plans." },
 ];
 
@@ -70,12 +71,12 @@ export default function Home() {
 
       <section className="marketing-hero" id="top">
         <div className="hero-copy">
-          <p className="marketing-kicker"><span /> Now available for iPhone</p>
-          <h1>Your license.<br /><em>True to size.</em></h1>
-          <p className="hero-lede">Scan, straighten, and turn a driver’s license into a print-ready PDF at its true physical size. Privately, on your iPhone.</p>
+          <p className="marketing-kicker"><span /> For automotive dealers &amp; salespeople</p>
+          <h1>License copies.<br /><em>Less rework.</em></h1>
+          <p className="hero-lede">Customer license photos arrive at awkward sizes, leaving you to crop, resize, and reprint for deal paperwork. Capture the card with LicenseResizer on your iPhone and create a PDF at its actual size.</p>
           <div className="hero-actions">
             <Link className="primary marketing-primary" href={APP_STORE_URL} data-analytics="app-store">Get on the App Store · $2.99 <span aria-hidden="true">-&gt;</span></Link>
-            <a className="secondary marketing-secondary" href="#enterprise">For your organization</a>
+            <a className="secondary marketing-secondary" href="#enterprise">For your dealership</a>
           </div>
           <div className="hero-proof" aria-label="Product benefits">
             <span><b>✓</b> No subscription</span>
@@ -93,15 +94,15 @@ export default function Home() {
       </section>
 
       <section className="dealer-strip" aria-label="iPhone app benefits">
-        <p>A useful document copy. A simpler everyday task.</p>
+        <p>For the salesperson preparing the deal—and the team keeping paperwork moving.</p>
         <ul className="dealer-trust-list"><li>One-time app purchase</li><li>No account</li><li>No advertisements</li><li>Private processing on iPhone</li></ul>
       </section>
 
       <section className="proof-section" id="proof" aria-labelledby="proof-heading">
         <div className="section-heading">
           <p className="marketing-kicker"><span /> See the transformation</p>
-          <h2 id="proof-heading">From an ordinary phone photo to a usable PDF.</h2>
-          <p>You stay in control. Capture the card, adjust its corners if needed, and choose how to use the finished PDF.</p>
+          <h2 id="proof-heading">From a camera capture to a paperwork-ready copy.</h2>
+          <p>When collecting a customer’s driver’s license, start with a guided camera capture. Review the corners, then save, share, or print the true-size PDF.</p>
         </div>
         <div className="proof-flow">
           <article>
@@ -140,8 +141,8 @@ export default function Home() {
       </section>
 
       <section className="problem-section" id="how-it-works">
-        <div><p className="marketing-kicker">Made for the task</p><h2>Less resizing.<br />More getting on with your day.</h2></div>
-        <p>A focused iPhone app for creating a clean license copy, without an account or a subscription.</p>
+        <div><p className="marketing-kicker">At the dealership</p><h2>The license copy shouldn’t hold up the paperwork.</h2></div>
+        <p>A customer’s photo can fill the page or print too small. That means another round of cropping, resizing, and printing. LicenseResizer places the captured card at standard ID-1 dimensions on a US Letter PDF, so you have a consistent starting point for the deal file.</p>
       </section>
       <section className="workflow-section" aria-label="App capabilities">
         <article><span>01</span><div className="feature-icon">⌗</div><h3>Capture and correct</h3><p>Use guided framing and perspective correction. Adjust all four corners when the crop needs help.</p></article>
@@ -159,19 +160,19 @@ export default function Home() {
         <div className="section-heading">
           <p className="marketing-kicker"><span /> Simple app pricing</p>
           <h2 id="pricing-heading">One app. One purchase.</h2>
-          <p>Get LicenseResizer for iPhone, or talk with us about your organization’s workflow.</p>
+          <p>Get the app for your day-to-day sales paperwork, or discuss the needs of your dealership team.</p>
         </div>
         <div className="plan-grid">
           <article className="plan-card featured">
-            <span className="plan-kicker">iPhone app</span><h3>Ready when you need a copy</h3>
+            <span className="plan-kicker">iPhone app</span><h3>For your next deal file</h3>
             <div className="plan-volume"><strong>$2.99</strong><span>one-time purchase<br />US App Store</span></div>
             <ul><li>True-size, US Letter PDFs</li><li>Front-only or front-and-back</li><li>No account, subscription, or ads</li></ul>
             <a className="primary" href={APP_STORE_URL}>Get on the App Store</a>
           </article>
           <article className="plan-card" id="enterprise">
-            <span className="plan-kicker">Enterprise inquiries</span><h3>For dealerships &amp; organizations</h3>
-            <p>Have a team or business workflow in mind? Tell us what you need and we’ll discuss the fit.</p>
-            <ul><li>Describe your organization and workflow</li><li>Share your requirements and questions</li><li>Please don’t include license images or personal document details</li></ul>
+            <span className="plan-kicker">Enterprise inquiries</span><h3>For dealership teams</h3>
+            <p>Collecting customer licenses across a sales team or multiple dealership locations? Tell us how your process works and we’ll discuss your requirements.</p>
+            <ul><li>Tell us about your team and locations</li><li>Describe your license-collection workflow</li><li>Please don’t include license images or personal document details</li></ul>
             <a className="secondary" href={ENTERPRISE_URL}>Discuss enterprise needs</a>
             <p className="enterprise-contact">Email <a href={ENTERPRISE_URL}>support@licenseresizer.com</a></p>
           </article>
@@ -184,7 +185,7 @@ export default function Home() {
         <div className="faq-intro">
           <p className="marketing-kicker"><span /> Common questions</p>
           <h2 id="faq-heading">The details people usually ask about.</h2>
-          <p>A few details about the iPhone app, printing, and existing web access.</p>
+          <p>Answers for salespeople preparing license copies and dealerships exploring their workflow.</p>
           <a href="/support">Get support <span aria-hidden="true">→</span></a>
         </div>
         <div className="faq-list">
@@ -198,16 +199,16 @@ export default function Home() {
       </section>
 
       <section className="final-cta">
-        <p className="marketing-kicker">A clean copy, in your pocket</p>
-        <h2>Your next license PDF starts here.</h2>
-        <p>Capture, straighten, and prepare a true-size PDF on your iPhone.</p>
+        <p className="marketing-kicker">Keep the deal paperwork moving</p>
+        <h2>Less time sizing.<br />More time selling.</h2>
+        <p>Prepare a customer’s license copy at its actual size, right from your iPhone.</p>
         <Link className="primary marketing-primary" href={APP_STORE_URL} data-analytics="app-store">Get LicenseResizer · $2.99 <span>→</span></Link>
         <small>One-time app purchase · iOS 17 or later</small>
       </section>
 
       <footer className="marketing-footer">
         <LicenseResizerBrand href="#top" />
-        <p>True-size license PDFs. Privately on iPhone.</p>
+        <p>True-size license copies for automotive sales.</p>
         <div><a href="/capture">Web capture</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a><Link href="/sign-in">Web sign in</Link><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="/terms">Terms</a><a href="/support">Support</a></div>
         <small>© {new Date().getFullYear()} LicenseResizer. LicenseResizer resizes documents; it does not verify identity, authenticity, or delivery.</small>
       </footer>
