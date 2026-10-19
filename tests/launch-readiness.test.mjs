@@ -97,11 +97,15 @@ test("product copy distinguishes handoff actions from confirmed delivery", async
   assert.doesNotMatch(marketing, /PDF delivered|Delivery opened|Your team receives/);
 });
 
-test("public marketing CTAs carry analytics attributes without tagging sign in", async () => {
+test("public app funnel preserves web access and separates enterprise inquiries", async () => {
   const marketing = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  assert.equal(marketing.match(/data-analytics="start-free-trial"/g)?.length, 3);
-  assert.equal(marketing.match(/data-analytics="try-customer-experience"/g)?.length, 1);
-  assert.match(marketing, /<Link href="\/sign-in">Sign in<\/Link>/);
+  assert.match(marketing, /https:\/\/apps\.apple\.com\/us\/app\/licenseresizer\/id6820282296/);
+  assert.match(marketing, /\$2\.99/);
+  assert.match(marketing, /mailto:support@licenseresizer\.com\?subject=LicenseResizer%20enterprise%20inquiry/);
+  assert.doesNotMatch(marketing, /start-free-trial|14-day trial|href="\/sign-up"/);
+  assert.equal(marketing.match(/data-analytics="app-store"/g)?.length, 3);
+  assert.match(marketing, /href="\/sign-in"/);
+  assert.match(marketing, /href="\/capture"/);
 });
 
 test("trust center and guided launch checklist are present", async () => {

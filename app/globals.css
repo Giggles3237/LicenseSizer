@@ -842,3 +842,17 @@ footer details p { max-width: 650px; margin: 10px auto; line-height: 1.6; }
   .blog-trial-cta .primary { justify-self: start; }
   .related-heading { align-items: flex-start; flex-direction: column; }
 }
+
+/* iPhone landing page: keep purchase and enterprise paths readable at every size. */
+.app-landing .hero-actions { flex-wrap: wrap; gap: 14px; }
+.app-landing .hero-actions > a { text-align: center; }
+.app-landing .pricing-note { max-width: 740px; padding-inline: 20px; font-size: 13px; line-height: 1.65; color: #55666a; }
+.app-landing .enterprise-contact { font-size: 13px; overflow-wrap: anywhere; }
+.app-landing .plan-card > p { line-height: 1.65; }
+.app-landing .final-cta > small { font-size: 12px; }
+.app-landing section[id], .app-landing article[id] { scroll-margin-top: 24px; }
+.app-landing a:focus-visible, .app-landing summary:focus-visible { outline: 3px solid #008577; outline-offset: 5px; }
+@media (max-width: 360px) {
+  .app-landing .marketing-nav .brand-logo { width: 85px; }
+  .app-landing .marketing-nav-links .nav-sign-in, .app-landing .marketing-nav-links .nav-cta { padding-inline: 8px; }
+}

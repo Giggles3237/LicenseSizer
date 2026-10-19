@@ -1,5 +1,12 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import LicenseResizerBrand from "./brand-logo";
+
+const APP_STORE_URL = "https://apps.apple.com/us/app/licenseresizer/id6820282296";
+const ENTERPRISE_URL = "mailto:support@licenseresizer.com?subject=LicenseResizer%20enterprise%20inquiry";
+const title = "LicenseResizer for iPhone — True-size license PDFs · $2.99";
+const description = "Scan, straighten, and create true-size license PDFs privately on your iPhone. $2.99 on the US App Store. No account or subscription. Enterprise inquiries welcome.";
+export const metadata: Metadata = { title, description, alternates: { canonical: "/" }, openGraph: { title, description, type: "website", images: [{ url: "/LicenseResizerLogo.webp", alt: "LicenseResizer" }] }, twitter: { card: "summary", title, description, images: ["/LicenseResizerLogo.webp"] }, other: { "apple-itunes-app": "app-id=6820282296" } };
 
 function MockLicense({ small = false }: { small?: boolean }) {
   return (
@@ -37,83 +44,64 @@ function HeroTransformation() {
 }
 
 const faqs = [
-  {
-    question: "Does the customer need to install an app?",
-    answer: "No. The branded link opens in the customer’s phone browser and guides them through capture, crop confirmation, PDF creation, and sharing.",
-  },
-  {
-    question: "Do license photos get uploaded or stored?",
-    answer: "No. Image processing and PDF creation happen on the customer’s device. LicenseResizer stores dealership settings and minimal workflow events, not license images or document content.",
-  },
-  {
-    question: "Who receives the finished PDF?",
-    answer: "The customer opens their device’s share sheet or a prepared email or text draft, verifies the recipient, and chooses whether to send. LicenseResizer does not send or confirm delivery.",
-  },
-  {
-    question: "Can customers include the back of the license?",
-    answer: "Yes. A dealership can offer front-only capture or let the customer add an optional back image, with the output arranged on one page or separate pages.",
-  },
-  {
-    question: "What happens after the free trial?",
-    answer: "The first trial lasts 14 days and does not require payment details. Paid plan pricing is shown in secure checkout before activation, and the trial cancels if no payment method is added.",
-  },
+  { question: "Is this a subscription?", answer: "No. LicenseResizer for iPhone is a $2.99 purchase on the US App Store, with no account, subscription, or advertisements. Prices in other regions may vary; check your local App Store." },
+  { question: "Which iPhones can use LicenseResizer?", answer: "The app requires iOS 17.0 or later. Download it from the App Store on a compatible iPhone." },
+  { question: "Do my license photos get uploaded?", answer: "The iPhone app processes license photos and PDFs on your device. LicenseResizer does not upload or retain your document data. Files leave the app only when you choose to save, print, or share them." },
+  { question: "Can I include the back of the license?", answer: "Yes. Create a front-only or front-and-back PDF, then use the native Share, Save, or Print actions." },
+  { question: "How do I print at the correct size?", answer: "The app places the card at standard ID-1 dimensions (85.60 × 53.98 mm) on a US Letter PDF. Use US Letter paper and Actual Size or 100% in your printer settings. Turn off Fit, Scale to Fit, and Shrink Oversized Pages." },
+  { question: "What if my organization needs a different workflow?", answer: "Contact support@licenseresizer.com to discuss your organization’s needs. Enterprise arrangements are discussed individually; the $2.99 App Store price is for the iPhone app." },
+  { question: "Can existing web customers still sign in?", answer: "Yes. Use Web sign in to access your existing workspace and billing. The web capture flow also remains available. The iPhone app purchase is separate from existing web plans." },
 ];
 
 export default function Home() {
   return (
-    <main className="marketing-shell">
+    <main className="marketing-shell app-landing">
       <nav className="marketing-nav" aria-label="Main navigation">
         <LicenseResizerBrand href="#top" />
         <div className="marketing-nav-links">
-          <a href="#proof">Product demo</a>
-          <a href="#how-it-works">How it works</a>
-          <a href="#pricing">Plans</a>
+          <a href="#how-it-works">The app</a>
+          <a href="#enterprise">Enterprise</a>
+          <a href="#pricing">Pricing</a>
           <a href="#faq">FAQ</a>
-          <Link className="nav-sign-in" href="/sign-in">Sign in</Link>
-          <Link className="nav-cta" href="/sign-up" data-analytics="start-free-trial">Start free trial <span aria-hidden="true">↗</span></Link>
+          <Link className="nav-sign-in" href="/sign-in">Web sign in</Link>
+          <Link className="nav-cta" href={APP_STORE_URL} data-analytics="app-store">Get the app <span aria-hidden="true">↗</span></Link>
         </div>
       </nav>
 
       <section className="marketing-hero" id="top">
         <div className="hero-copy">
-          <p className="marketing-kicker"><span /> Private driver’s-license collection</p>
-          <h1>Customer licenses.<br /><em>Perfectly prepared.</em></h1>
-          <p className="hero-lede">Give customers one branded link. They take a photo, confirm it looks right, and share a clean PDF from their own device.</p>
+          <p className="marketing-kicker"><span /> Now available for iPhone</p>
+          <h1>Your license.<br /><em>True to size.</em></h1>
+          <p className="hero-lede">Scan, straighten, and turn a driver’s license into a print-ready PDF at its true physical size. Privately, on your iPhone.</p>
           <div className="hero-actions">
-            <Link className="primary marketing-primary" href="/sign-up" data-analytics="start-free-trial">Start Free Trial <span aria-hidden="true">-&gt;</span></Link>
-            <a className="secondary marketing-secondary" href="#proof">See How It Works</a>
+            <Link className="primary marketing-primary" href={APP_STORE_URL} data-analytics="app-store">Get on the App Store · $2.99 <span aria-hidden="true">-&gt;</span></Link>
+            <a className="secondary marketing-secondary" href="#enterprise">For your organization</a>
           </div>
           <div className="hero-proof" aria-label="Product benefits">
-            <span><b>✓</b> No app required</span>
-            <span><b>✓</b> Images never leave the device</span>
-            <span><b>✓</b> Customer chooses the recipient</span>
+            <span><b>✓</b> No subscription</span>
+            <span><b>✓</b> On-device processing</span>
+            <span><b>✓</b> iOS 17 or later</span>
           </div>
         </div>
 
         <div className="hero-product hero-transform" aria-label="Crooked photo transformed into a prepared PDF">
           <div className="preview-glow" />
           <HeroTransformation />
-          <div className="floating-card floating-private"><span className="float-icon">OK</span><div><b>Private by design</b><small>Photos stay on the customer phone</small></div></div>
-          <div className="floating-card floating-complete"><span className="float-check">PDF</span><div><b>Ready in seconds</b><small>Prepared for the dealership workflow</small></div></div>
+          <div className="floating-card floating-private"><span className="float-icon">OK</span><div><b>Private by design</b><small>Processed on your iPhone</small></div></div>
+          <div className="floating-card floating-complete"><span className="float-check">PDF</span><div><b>True-size PDF</b><small>Save, share, or print</small></div></div>
         </div>
       </section>
 
-      <section className="dealer-strip" aria-label="Designed for dealership teams">
-        <p>Trusted for customer handoffs at teams like these.</p>
-        <div><span>RIDGELINE MOTORS</span><i>•</i><span>SUMMIT AUTO</span><i>•</i><span>VALLEY IMPORTS</span><i>•</i><span>NORTHSTAR CARS</span></div>
-        <ul className="dealer-trust-list" aria-label="Privacy and workflow assurances">
-          <li>No app required</li>
-          <li>Images never leave the device</li>
-          <li>CRM and email friendly</li>
-          <li>&quot;Customers actually finish it.&quot;</li>
-        </ul>
+      <section className="dealer-strip" aria-label="iPhone app benefits">
+        <p>A useful document copy. A simpler everyday task.</p>
+        <ul className="dealer-trust-list"><li>One-time app purchase</li><li>No account</li><li>No advertisements</li><li>Private processing on iPhone</li></ul>
       </section>
 
       <section className="proof-section" id="proof" aria-labelledby="proof-heading">
         <div className="section-heading">
           <p className="marketing-kicker"><span /> See the transformation</p>
           <h2 id="proof-heading">From an ordinary phone photo to a usable PDF.</h2>
-          <p>The customer stays in control at every step. They review the crop before LicenseResizer prepares the document.</p>
+          <p>You stay in control. Capture the card, adjust its corners if needed, and choose how to use the finished PDF.</p>
         </div>
         <div className="proof-flow">
           <article>
@@ -122,7 +110,7 @@ export default function Home() {
               <MockLicense />
               <span className="proof-badge">Phone photo</span>
             </div>
-            <div className="proof-copy"><span>01</span><div><h3>Capture</h3><p>A quick photo—no careful cropping required.</p></div></div>
+            <div className="proof-copy"><span>01</span><div><h3>Capture</h3><p>Guided camera framing with automatic capture or a manual shutter.</p></div></div>
           </article>
           <span className="proof-arrow" aria-hidden="true">→</span>
           <article>
@@ -130,9 +118,9 @@ export default function Home() {
               <div className="crop-grid" />
               <MockLicense />
               <i className="proof-corner tl" /><i className="proof-corner tr" /><i className="proof-corner bl" /><i className="proof-corner br" />
-              <span className="proof-badge">Customer confirmed</span>
+              <span className="proof-badge">Review the crop</span>
             </div>
-            <div className="proof-copy"><span>02</span><div><h3>Review</h3><p>The customer checks and adjusts the detected edges.</p></div></div>
+            <div className="proof-copy"><span>02</span><div><h3>Review</h3><p>Automatic perspective correction, with four-corner adjustment when needed.</p></div></div>
           </article>
           <span className="proof-arrow" aria-hidden="true">→</span>
           <article>
@@ -144,84 +132,60 @@ export default function Home() {
               </div>
               <span className="proof-badge">PDF ready</span>
             </div>
-            <div className="proof-copy"><span>03</span><div><h3>Share</h3><p>A consistent PDF, ready for the customer to send.</p></div></div>
+            <div className="proof-copy"><span>03</span><div><h3>Share</h3><p>A US Letter PDF with the card at its standard physical size.</p></div></div>
           </article>
         </div>
-        <p className="proof-note">Illustrated example. Try the working customer flow with your own non-sensitive sample.</p>
-        <a className="secondary proof-demo-cta" href="/capture">Open the live product demo <span aria-hidden="true">↗</span></a>
+        <p className="proof-note">Illustrated workflow, not app screenshots. No personal license information is shown.</p>
+        <a className="secondary proof-demo-cta" href={APP_STORE_URL}>See the app on the App Store <span aria-hidden="true">↗</span></a>
       </section>
 
-      <section className="problem-section">
-        <div><p className="marketing-kicker">A cleaner process</p><h2>Your team has better things to do than crop license photos.</h2></div>
-        <p>LicenseResizer replaces blurry text messages, awkward email threads, and manual resizing with one consistent customer workflow.</p>
+      <section className="problem-section" id="how-it-works">
+        <div><p className="marketing-kicker">Made for the task</p><h2>Less resizing.<br />More getting on with your day.</h2></div>
+        <p>A focused iPhone app for creating a clean license copy, without an account or a subscription.</p>
       </section>
-
-      <section className="workflow-section" id="how-it-works">
-        <article><span>01</span><div className="feature-icon">↗</div><h3>Share your link</h3><p>Text or email a dealership-branded link from any CRM or conversation.</p></article>
-        <article><span>02</span><div className="feature-icon">⌗</div><h3>Customer captures</h3><p>Guided capture straightens the card and checks image quality on their device.</p></article>
-        <article><span>03</span><div className="feature-icon">✓</div><h3>Customer shares</h3><p>The customer chooses an app and confirms the recipient before sending the true-size PDF.</p></article>
-      </section>
-
-      <section className="control-section">
-        <div className="control-copy">
-          <p className="marketing-kicker">Set it once</p>
-          <h2>Your process.<br />Every time.</h2>
-          <p>Control the format behind the scenes, so customers only see the few steps they need.</p>
-          <ul>
-            <li><span>✓</span><div><b>Branded customer link</b><small>Your dealership name, your destination.</small></div></li>
-            <li><span>✓</span><div><b>Consistent PDF output</b><small>Front, optional back, page size, labels, and image detail.</small></div></li>
-            <li><span>✓</span><div><b>Lightweight activity reporting</b><small>See PDF preparation and handoff options opened without storing documents.</small></div></li>
-          </ul>
-        </div>
-        <div className="console-wrap">
-          <span className="example-label">Example dashboard · sample data</span>
-          <div className="console-preview" aria-label="Example dealer console with sample data">
-            <div className="console-top"><b>LicenseResizer</b><span>Ridgeline Motors⌄</span></div>
-            <div className="console-grid">
-              <aside><small>ORGANIZATION</small><b>Dealer console</b><span className="active">Overview</span><span>Handoff setup</span><span>Admins &amp; users</span><span>Plan &amp; billing</span></aside>
-              <div className="console-main"><small>SAMPLE · LAST 30 DAYS</small><h3>Good morning.</h3><div className="metrics"><div><b>142</b><span>Sessions</span></div><div><b>119</b><span>PDFs created</span></div><div><b>106</b><span>Handoff actions</span></div></div><div className="activity"><b>Recent activity</b><span><i>✓</i> PDF created <small>2 min ago</small></span><span><i>↗</i> Share sheet opened <small>8 min ago</small></span><span><i>✓</i> PDF created <small>14 min ago</small></span></div></div>
-            </div>
-          </div>
-        </div>
+      <section className="workflow-section" aria-label="App capabilities">
+        <article><span>01</span><div className="feature-icon">⌗</div><h3>Capture and correct</h3><p>Use guided framing and perspective correction. Adjust all four corners when the crop needs help.</p></article>
+        <article><span>02</span><div className="feature-icon">▤</div><h3>Choose your sides</h3><p>Create a front-only or front-and-back PDF at standard ID-1 card dimensions.</p></article>
+        <article><span>03</span><div className="feature-icon">↗</div><h3>Save, share, or print</h3><p>Use native iPhone actions. You choose where the finished document goes.</p></article>
       </section>
 
       <section className="privacy-section" id="privacy">
         <div className="privacy-seal"><span>◉</span><small>ON-DEVICE<br />PROCESSING</small></div>
         <div><p className="marketing-kicker light">Privacy is the product</p><h2>The license image never becomes our data.</h2></div>
-        <div><p>Photos and PDFs stay in volatile browser memory on the customer’s device. LicenseResizer stores dealership settings and minimal workflow events—not license images, names, filenames, or document content.</p><a href="/security">Review our safeguards <span>→</span></a></div>
+        <div><p>The iPhone app processes photos and PDFs on your device. LicenseResizer does not upload, retain, analyze, or sell your document data. Files leave the app only when you choose to save, print, or share them.</p><a href="/privacy">Read our privacy policy <span>→</span></a></div>
       </section>
 
       <section className="pricing-section" id="pricing" aria-labelledby="pricing-heading">
         <div className="section-heading">
-          <p className="marketing-kicker"><span /> Simple plans</p>
-          <h2 id="pricing-heading">Start free. Choose the right fit later.</h2>
-          <p>Every first trial includes 14 days of access with no payment method required. Monthly pricing is shown in secure checkout before you activate a paid plan.</p>
+          <p className="marketing-kicker"><span /> Simple app pricing</p>
+          <h2 id="pricing-heading">One app. One purchase.</h2>
+          <p>Get LicenseResizer for iPhone, or talk with us about your organization’s workflow.</p>
         </div>
         <div className="plan-grid">
-          <article className="plan-card">
-            <span className="plan-kicker">Individual</span>
-            <h3>For one person</h3>
-            <div className="plan-volume"><strong>100</strong><span>PDFs<br />per month</span></div>
-            <ul><li>True-size PDF creation</li><li>Front and optional back</li><li>Private, on-device processing</li></ul>
-            <Link className="secondary" href="/sign-up">Start individual trial</Link>
-          </article>
           <article className="plan-card featured">
-            <span className="plan-kicker">Dealership</span>
-            <h3>For customer-facing teams</h3>
-            <div className="plan-volume words"><strong>Dealer</strong><span>workspace with<br />higher-volume access</span></div>
-            <ul><li>Branded customer link</li><li>Team access and handoff settings</li><li>Lightweight activity reporting</li></ul>
-            <Link className="primary" href="/sign-up">Start dealership trial</Link>
+            <span className="plan-kicker">iPhone app</span><h3>Ready when you need a copy</h3>
+            <div className="plan-volume"><strong>$2.99</strong><span>one-time purchase<br />US App Store</span></div>
+            <ul><li>True-size, US Letter PDFs</li><li>Front-only or front-and-back</li><li>No account, subscription, or ads</li></ul>
+            <a className="primary" href={APP_STORE_URL}>Get on the App Store</a>
+          </article>
+          <article className="plan-card" id="enterprise">
+            <span className="plan-kicker">Enterprise inquiries</span><h3>For dealerships &amp; organizations</h3>
+            <p>Have a team or business workflow in mind? Tell us what you need and we’ll discuss the fit.</p>
+            <ul><li>Describe your organization and workflow</li><li>Share your requirements and questions</li><li>Please don’t include license images or personal document details</li></ul>
+            <a className="secondary" href={ENTERPRISE_URL}>Discuss enterprise needs</a>
+            <p className="enterprise-contact">Email <a href={ENTERPRISE_URL}>support@licenseresizer.com</a></p>
           </article>
         </div>
-        <p className="pricing-note">Plans are billed monthly after trial activation. You will see the current price before agreeing to pay.</p>
+        <p className="pricing-note">App Store pricing may vary by region. Enterprise inquiries are separate from the iPhone app purchase.</p>
+        <p className="pricing-note">Already using the web product? <Link href="/sign-in">Sign in to your workspace</Link> for existing access and billing, or <Link href="/capture">open web capture</Link>.</p>
       </section>
 
       <section className="faq-section" id="faq" aria-labelledby="faq-heading">
         <div className="faq-intro">
           <p className="marketing-kicker"><span /> Common questions</p>
           <h2 id="faq-heading">The details people usually ask about.</h2>
-          <p>Still deciding? The live demo works without an account and is the fastest way to understand the customer experience.</p>
-          <a href="/capture">Try the live demo <span aria-hidden="true">→</span></a>
+          <p>A few details about the iPhone app, printing, and existing web access.</p>
+          <a href="/support">Get support <span aria-hidden="true">→</span></a>
         </div>
         <div className="faq-list">
           {faqs.map((faq, index) => (
@@ -234,17 +198,17 @@ export default function Home() {
       </section>
 
       <section className="final-cta">
-        <p className="marketing-kicker">Make the next handoff easier</p>
-        <h2>Stop chasing license photos.</h2>
-        <p>Set up your dealership link and give every customer the same smooth, private experience.</p>
-        <Link className="primary marketing-primary" href="/sign-up" data-analytics="start-free-trial">Start your 14-day trial <span>→</span></Link>
-        <small>No credit card required</small>
+        <p className="marketing-kicker">A clean copy, in your pocket</p>
+        <h2>Your next license PDF starts here.</h2>
+        <p>Capture, straighten, and prepare a true-size PDF on your iPhone.</p>
+        <Link className="primary marketing-primary" href={APP_STORE_URL} data-analytics="app-store">Get LicenseResizer · $2.99 <span>→</span></Link>
+        <small>One-time app purchase · iOS 17 or later</small>
       </section>
 
       <footer className="marketing-footer">
         <LicenseResizerBrand href="#top" />
-        <p>Private document capture for dealerships.</p>
-        <div><a href="/capture">Product demo</a><a href="#pricing">Plans</a><a href="#faq">FAQ</a><Link href="/sign-in">Dealer sign in</Link><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="/terms">Terms</a><a href="/support">Support</a></div>
+        <p>True-size license PDFs. Privately on iPhone.</p>
+        <div><a href="/capture">Web capture</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a><Link href="/sign-in">Web sign in</Link><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="/terms">Terms</a><a href="/support">Support</a></div>
         <small>© {new Date().getFullYear()} LicenseResizer. LicenseResizer resizes documents; it does not verify identity, authenticity, or delivery.</small>
       </footer>
     </main>
